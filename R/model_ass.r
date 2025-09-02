@@ -1,3 +1,5 @@
+# packages
+require('DHARMa') 
 # function
 m_ass = function(
     file_name = 'define', 
@@ -6,6 +8,7 @@ m_ass = function(
     cont = NULL, # vector of variable names used as continues fixed effects
     categ = NULL, # vector of variable names used as categorical fixed effects
     trans = "none", # vector of transformations used for each fixed effect
+    #nested = FALSE, # indicate whether some of the random intercepts are nested,
     spatial = TRUE, temporal = TRUE, 
     PNG = TRUE,  width_ = 10, height_ = 5,
     n_col = 6, n_row = NULL, # number of columns and rows if automatic calculation not desirable
@@ -20,11 +23,11 @@ m_ass = function(
     
     # number of rows in a plot
     base_plots <- 3  # e.g., residuals vs fitted, sqrt residuals, Q-Q
-    rand_plots <- nrow(l) - 1  # number of random effect Q-Qs
+    rand_plots <- nrow(l) # number of random effect Q-Qs
     n <- base_plots + rand_plots + length(cont) + length(categ) +
-        if (temporal) 1 else 0 +
-        if (spatial) 1 else 0
-
+        (if (temporal) 1 else 0) +
+        (if (spatial) 3 else 0) #- 1 # sometimes helpful
+   
     if (is.null(n_row)) n_row <- ceiling(n / n_col)
 
     # plotting device
@@ -158,3 +161,67 @@ m_ass('sampling01_m2p_g',mo = m2p_g, dat = dA,
     temporal = FALSE
     )  
 
+# generate for trend models 2000-2020
+m_ass('trend00-20_r-int',mo = ma, dat = dd, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    ) 
+
+m_ass('trend00-20_r-int-nested',mo = mb, dat = dd, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+m_ass('trend00-20_r-int_r-sl-year-city-state',mo = mas1, dat = dd, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )
+
+m_ass('trend00-20_r-int-nested_r-sl-year',mo = mbs1, dat = dd, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+m_ass('trend00-20_r-int-nested_r-sl-year_2',mo = msab1, dat = dd, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+# generate for trend models 2010-2020    
+m_ass('trend10-20_r-int',mo = ma_, dat = dd10, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+m_ass('trend10-20_r-int-nested',mo = mb_, dat = dd10, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+m_ass('trend10-20_r-int_r-sl-year-city-state',mo = mas1_, dat = dd10, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )
+
+m_ass('trend10-20_r-int-nested_r-sl-year',mo = mbs1_, dat = dd10, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+m_ass('trend10-20_r-int-nested_r-sl-year_2',mo = msab1_, dat = dd10, 
+    cont = c('year'),
+    categ = c('holc_grade'),
+    trans = c('none')
+    )  
+
+# further checks
+simulateResiduals(ma) |> testDispersion()
+simulateResiduals(mbs1) |> testDispersion(); testSpatial();      

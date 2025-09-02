@@ -1,5 +1,13 @@
 require(data.table)
-# our check
+require(dplyr)
+require(ggplot2)
+
+# our check using data.table
+
+# holc area
+holc <- fread('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv')
+
+holc_area = holc[, list(sum_area_holc_km2 = sum(area_holc_km2)), holc_grade]  
 
 # Load 1933-2022 data
 temporal_trend = read.table('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv', header= T,sep=',')
@@ -21,7 +29,7 @@ temporal_all_data = plyr::ddply(temporal_trend, 'holc_grade', function(x){
 
 # replicate their outputs with data.table
 tt = fread('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
-tt = fread('Data/from_script_04/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
+#tt = fread('Data/from_script_04/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(tt) <- c('Year','holc_grade', 'Sum')
 
@@ -33,10 +41,19 @@ d = d[order(holc_grade,Year)]
 # add holc grade
 holc_area_dt = data.table(holc_area)
 dh = merge(d,holc_area_dt, all.x = TRUE)
-dh[, sampling_density := n_obs/area_sum]
+dh[, sampling_density := n_obs/sum_area_holc_km2]
 dd = dh[Year >= 2000 & Year <= 2020]
 #filter(Year >= 2010 & Year <= 2019) %>%
 #filter(Year <= 2020) %>%
+
+# DESCRIPTIVE
+# check distributions
+ggplot(dd, aes(sampling_density)) + geom_density()
+ggplot(dd, aes(sampling_density)) + geom_density() + scale_x_continuous(trans = 'log10')
+
+ggplot(dd, aes(n_obs)) + geom_density()
+ggplot(dd, aes(n_obs)) + geom_density() + scale_x_continuous(trans = 'log10')
+summary(dd)
 
 # number of observations
 ggplot(dd,aes(x = Year, y = n_obs), fill = holc_grade) +
@@ -120,6 +137,18 @@ ggplot(plotdat[Year >= 2000 & Year <= 2020], aes(sampling_density.x, sampling_de
     strip.text = element_text(color = "black") # make labels black
   )
 
+# MODELS
+dd[, year :=Year]
+dd[, holc_grade_D := factor(holc_grade, levels = c("D","B","C","A"))]
+sum_m  = lm(log10(sampling_density)~holc_grade_D*scale(year),dd)
+summary(sum_m)
+require(effects)
+plot(allEffects(sum_m), multiline=TRUE,  ci.style = "bands", rug = FALSE,key.args = list(space = "right", title = NULL))
+
+sum_m_10  = lm(log10(sampling_density)~holc_grade_D*scale(year),dd[year>=2010])
+summary(sum_m_10)
+
+plot(allEffects(sum_m_10), multiline=TRUE,  ci.style = "bands", rug = FALSE,key.args = list(space = "right", title = NULL))
 
 ### OLD
 

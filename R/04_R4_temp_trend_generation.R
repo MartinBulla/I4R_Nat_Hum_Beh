@@ -10,7 +10,7 @@
 #
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-# [0] Load packages and holc polygon ####
+# Load packages
 require(data.table) #MaPe
 require(rgdal)
 require(stringr)
@@ -75,7 +75,8 @@ holc_area <-  holc %>% dplyr::select(city, holc_grade, area_holc_km2) %>% dplyr:
 # List all .Rdata files in our input folder that contain bird biodiversity data:
 aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T) # MaPe
 
-which(aves_obs ==   "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8145_Aves_all_observations.Rdata")
+# Remove files without unique holc_id
+which(aves_obs == "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Houston_NA_A_8932_Aves_all_observations.Rdata")
 
 aves_obs = aves_obs[!aves_obs%in%c(
     "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/IA_Council Bluffs_B_B_1890_Aves_all_observations.Rdata",
@@ -84,7 +85,21 @@ aves_obs = aves_obs[!aves_obs%in%c(
      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_B_B_8117_Aves_all_observations.Rdata",
      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_B_B_8122_Aves_all_observations.Rdata",
      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8141_Aves_all_observations.Rdata",
-      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8145_Aves_all_observations.Rdata"
+      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8145_Aves_all_observations.Rdata",
+      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8751_Aves_all_observations.Rdata",
+      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8752_Aves_all_observations.Rdata",
+      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8753_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8755_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8759_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8760_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8762_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8763_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8765_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Beaumont_D_D_8784_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_A_A_8859_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_A_A_8864_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_C_C_8876_Aves_all_observations.Rdata",
+       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_C_C_8877_Aves_all_observations.Rdata"
     )] # remove cities missing unique holc_ids (i.e. which cannot be merged with area)
 
 
@@ -94,8 +109,8 @@ aves_obs = aves_obs[!aves_obs%in%c(
 # [1] Loop through all  HOLC polygons with bird biodiversity data and count the number of observations per single HOLC polygon, the raw building block to calculate sampling density ####
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-for(i in unique(aves_obs)[7335:length(aves_obs)]){ 
-   # i = unique(aves_obs)[500]
+for(i in unique(aves_obs)[8029:length(aves_obs)]){ 
+   # i = unique(aves_obs)[8029]
   print(i)
   
   if(!any(str_detect(aves_obs, pattern = i))==TRUE){
@@ -133,9 +148,15 @@ for(i in unique(aves_obs)[7335:length(aves_obs)]){
   d[, holc_polygon := gsub('.Rdata','', basename(i))]
   d[ ,lat:= decimalLatitude[1]] 
   d[ ,lon:= decimalLongitude[1]]
+  d[, id2 :=paste(city_state, holc_id)] # create unique ID
+
+  # stop running if holc_id not unique, i.e. A, B, C, D, E
+  if(unique(d$holc_grade)==unique(d$holc_id) | is.na(unique(d$holc_id)) ){
+    print(paste0('no unique holc_id data ini', i))
+    next
+  }
   
   # add area  
-  d[, id2 :=paste(city_state, holc_id)] # create unique ID
   d = merge(d, h[,.(id2, state, area_holc_km2)], by = 'id2',all.x = TRUE)
   #d[, area_holc_km2:=holc_[id2%in%d$id2[1], area_holc_km2]] # merge
 
