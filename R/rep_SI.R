@@ -1,5 +1,5 @@
 #' ---
-#' title: <font size="2">Replicating </font><br><font size="6">Ellis-Soto et al 2023, Nat Hum Beh</font>
+#' title: <font size="2">Replicating </font><br><font size="6">Historical redlining is associated with increasing geographical disparities in bird biodiversity sampling in the United States (Ellis-Soto et al 2023, Nat Hum Beh 7:1869–1877)</font>
 #' author: <font size="3">Martin Bulla & Peter Mikula</font><br><br><font size="2">created by Martin Bulla</font><br>
 #' date: <font size="1.5">`r Sys.time()`</font>
 #' bibliography: ../Resources/_bib.bib
@@ -22,9 +22,9 @@ knitr::opts_knit$set(root.dir = normalizePath(".."))
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
  
 #' # General note  
-#' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied their publication [@ellis-soto_historical_2023] in the [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication at the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreate by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'.
+#' For the sake of reproducibility, we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'.
 #' 
-#' Scripts generting the outputs of this html are availalbe within the html upon clicking the `code` button at top right above each display item!
+#' Scripts generting the outputs of this html are available upon clicking the `code` button at top right above each display item.
 #' 
 #' ##### Code to load tools and data
 #+ start, echo = T, results = 'hide', warning=FALSE
@@ -160,7 +160,8 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 
 #' # 2. Replicating temporal trends  
 #' TODO: Peto, let's decide whether the current i-iii order below is ok. I somehow feel that it might be better to first discuss Fig. 4; highlight the issue with the data and then use the correct data.
-#' 
+#' PETO: Why not, we can try it this way
+#'
 #' The results on temporal trends contain three key outputs:  
 #' i. Claim about 35.6% in relative disparity between HOLC grade A and D from 2000 to 2020.  
 #' ii. Visualised temporal trends in Fig. 4.  
@@ -228,11 +229,12 @@ ggdraw(xlim = c(-0.03, 1), ylim = c(-0.03, 1)) +
   draw_label("Relative disparity between HOLC grade A and D\n[%; D as a baseline]", x = -0.03, y = 0.5, angle = 90, vjust = 1.5, size = 11) #ggsave('Output/Fig_X-trends_3-rows_holc-area-b-all.jpg', units = 'cm', width = 15, height = 21)
 
 #' <a name="F_X">
-#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (i.e. D being the baseline) based on overall sampling density (i.e. sum of all A or D devided by the overall A or D area;  the first two rows) or median sampling density per HOLC grade and year. Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represent the aggregation done by the author's, bottom row the aggregatin done by us. Note that the authors' dataset did not contain area per year and category; hence, we were unable to compute the median sampling density for their dataset.
+#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (i.e. D being the baseline) based on overall sampling density (i.e. sum of all A or D devided by the overall A or D area;  the first two rows) or median sampling density per HOLC grade and year. Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represent the aggregation done by the author's, cental and bottom rows the aggregation done by us. Note that the authors' dataset did not contain area per year and category; hence, we were unable to compute the median sampling density for their dataset.
 #' 
 #' TODO: Martin check whether the above is meaningful and whether authors' scripts cannot be tweeked to provide neighberhood ids.
 #' 
 #' TODO: Peto, let's decide whether we keep all three rows in the above figure or not. After fixing the area, it does not look as dramatic as we thought!!!.
+#' PETO: I would keep it, it is not taking a lof of space, and its increasing robustness
 #' 
 #' ## ii. Visualised temporal trends in Fig. 4.
 #' The output that resembles Fig. 4 is located in two places, each yielding different results. 
