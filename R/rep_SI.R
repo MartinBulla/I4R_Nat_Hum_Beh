@@ -538,16 +538,30 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 #' 
 #' ## iii. General additive model on temporal trends in Table S4.  
 #' ### Computational reproducibility.
-#' We were unable to generate the results found in Table S4. The authors' script provided different outputs, both using multiplied and corrected dataset (see below Table X TODO:)
+#' We were unable to generate the results found in Table S4. The authors' script provided different outputs, both using multiplied and corrected dataset (see below Table X TODO:)  
+
+require(mgcv)
+
+summary(gam(sampling_density ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)]))
+
+summary(gam(sampling_density ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)]))
+
+model_sampling = glm((sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
+
+model_sampling |> tab_model( show.aic = TRUE)
+
+tab_model(model_sampling, auto.label = T)
 
 #' ### Robustness reproducibility
 #' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon (i.e. city-specific HOLC-grades and sampling polygon ids). Note that some polygons are missing polygon ids and hence merging with polygon area was not possible (TODO: n = XX, n xx used records).  
-#' We then specified mixed-effect models with sampling density (km²) as a response and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors.
-#' (1) Random intercept of state, city within state and unique sampling polygon id
-#' (2) Same as (1) but explicitely nested
-#' (3) Same as (1), but with random slope of year within city.
-#' (4) Same as (2), but with random slope of year.
-#' (5) Random slope of year within HOLC grade, nested within city and state (random intercepts) and separate randome intercept for unique polygon id. 
+#' 
+#' We then specified mixed-effect models with sampling density (km²) as a response and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors:
+#'   
+#' (1) Random intercept of state, city within state and unique sampling polygon id  
+#' (2) Same as (1) but explicitely nested  
+#' (3) Same as (1), but with random slope of year within city.  
+#' (4) Same as (2), but with random slope of year.  
+#' (5) Random slope of year within HOLC grade, nested   within city and state (random intercepts) and separate randome intercept for unique polygon id. 
 #' 
 #' The results reveal that TODO:continue here 
 #' 
