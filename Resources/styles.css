@@ -2,8 +2,8 @@
 
 /* scale all headings relative to h1 */
 h1 { font-size: 24px; }   /* set your max size */
-h2 { font-size: 0.85em; } /* 85% of h1 */
-h3 { font-size: 0.7em; }  /* 70% of h1 */
-h4 { font-size: 0.55em; }
-h5 { font-size: 0.45em; }
-h6 { font-size: 0.4em; }
+h2 { font-size: 22px; } /* 85% of h1 h2 {font-size: 0.95em;}*/ 
+h3 { font-size: 20px; }  /* 70% of h1 */
+h4 { font-size: 18px; }
+h5 { font-size: 16px; }
+h6 { font-size: 14px; }

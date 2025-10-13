@@ -1,12 +1,16 @@
-# =============================================================
-# Adjusted authors' code '04_R4_uneven_biodiversity_data_2023.R'
-# Generates dataset aggregated by year abd neighberhood.
-#❗ Runs relative to the project's root directory, requires
-# XX, and exports Mape_R1_biodiv_sum_bird_obs_by_holc_id_year.csv into ./Data/MaPe.
-# =============================================================---
+# --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+#
+# Uneven biodiversity sampling across redlined urban areas in the United States, EcoEvoRxiv, in review Nature Human Behavior
+#
+# Diego Ellis-Soto, Millie Chapman, Dexter Locke
+#
+# Contact information: Diego.ellissoto@yale.edu
+#
+# The aim of this script is to perform analysis on estimating the sampling density and survey completeness of bird biodiversity across 195 urban areas across the United States. 
+#
+# --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-# Load packages
-require(data.table) #MaPe
+# [0] Load packages and holc polygon ####
 require(rgdal)
 require(stringr)
 require(tidyverse)
@@ -41,14 +45,14 @@ holc_pal <- c('#92BC6B' # green
 # Directories:
 # indir: Contains the raw bird biodiversity data downloaded from GBIF as an SF object, for each HOLC polygon separately, stored as a .Rdata file
 # outdir: Folder where we will store our created outputs
-indir = '/HOLC_newest/Download_GBIF_HOLC' # MaPe
-outdir = 'Data' # MaPe
+indir = '/HOLC_newest/Download_GBIF_HOLC' #MaBu
+outdir = '/Users/diegoellis/Desktop/CSV_tables/'
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # Load Holc Polygons from the Mapping Inequality project form the University of richmond
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-holc <- st_read('Data/holc_ad_data.shp') %>% 
+holc <- st_read('/Users/diegoellis/Downloads/shapefile/holc_ad_data.shp') %>% 
   sf::st_cast('POLYGON') %>% # IMPORTANT
   dplyr::filter(!st_is_empty(.)) %>% 
   sf::st_make_valid(.) %>% 
@@ -58,52 +62,17 @@ holc <- st_read('Data/holc_ad_data.shp') %>%
                   , area_holc_km2 = as.double(st_area(.) / 1e+6)) %>% 
   dplyr::select(id, state, city, holc_id, holc_grade, city_state, area_holc_km2) 
 
-holc_ = data.table(holc) # MaPe make it a data.table
-h = holc_[!is.na(holc_id)] # MaPe remove 124 unnamed polygons nrow(holc_)-nrow(k)             
-h[, id2 :=paste(paste(city,state, sep = ', '), holc_id)] # MaPe - create unique ID
-
 # Calculate the area of holc polygons
 holc_area <-  holc %>% dplyr::select(city, holc_grade, area_holc_km2) %>% dplyr::group_by(holc_grade) %>% dplyr::summarise(area_sum = sum(area_holc_km2)) %>% dplyr::filter(holc_grade != 'E')  %>% as_tibble() %>% dplyr::select(-geometry)
 
-# List all .Rdata files in input folder that contain bird biodiversity data:
-aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T) # MaPe
-
-# Remove files without unique holc_id
-which(aves_obs == "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Houston_NA_A_8932_Aves_all_observations.Rdata")
-
-aves_obs = aves_obs[!aves_obs%in%c(
-    "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/IA_Council Bluffs_B_B_1890_Aves_all_observations.Rdata",
-    "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/NE_Omaha_B_B_5368_Aves_all_observations.Rdata",
-     "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/OK_Tulsa_A_A_7843_Aves_all_observations.Rdata",
-     "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_B_B_8117_Aves_all_observations.Rdata",
-     "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_B_B_8122_Aves_all_observations.Rdata",
-     "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8141_Aves_all_observations.Rdata",
-      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/PA_Harrisburg_D_D_8145_Aves_all_observations.Rdata",
-      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8751_Aves_all_observations.Rdata",
-      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8752_Aves_all_observations.Rdata",
-      "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_A_A_8753_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8755_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8759_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_B_B_8760_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8762_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8763_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Austin_D_D_8765_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Beaumont_D_D_8784_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_A_A_8859_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_A_A_8864_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_C_C_8876_Aves_all_observations.Rdata",
-       "/Users/martinbulla/Dropbox/Science/MS/I4R_Nat_Hum_Beh/original_paper/Data/Biodiversity_holc_all/TX_Fort Worth_C_C_8877_Aves_all_observations.Rdata"
-    )] # remove cities missing unique holc_ids (i.e. which cannot be merged with area)
-
-
-
+# List all .Rdata files in our input folder that contain bird biodiversity data:
+aves_obs = (list.files('/Users/diegoellis/Desktop/HOLC_newest/Download_GBIF_HOLC', pattern = 'Aves_all_observations.Rdata', full.names = T))
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
-# [1] Loop through all  HOLC polygons with bird biodiversity data and count the number of observations per single HOLC polygon, the raw building block to calculate sampling density ####
+# [1] Loop through all our HOLC polygons with bird biodiversity data and count the number of observations per single HOLC polygon, the raw building block to calculate sampling density ####
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-for(i in unique(aves_obs)[8029:length(aves_obs)]){ 
-   # i = unique(aves_obs)[8029]
+for(i in unique(aves_obs)){
   print(i)
   
   if(!any(str_detect(aves_obs, pattern = i))==TRUE){
@@ -130,51 +99,23 @@ for(i in unique(aves_obs)[8029:length(aves_obs)]){
              'city_state',
              'holc_id',
              'holc_grade',
-             #'species', MaPe removed duplicated species name
+             'species',
              'id')
   
   results <- lapply( results , "[", , mycols) 
   
   df <- do.call(rbind, results)
-
-  d = data.table(df)  
-  d[, holc_polygon := gsub('.Rdata','', basename(i))]
-  d[ ,lat:= decimalLatitude[1]] 
-  d[ ,lon:= decimalLongitude[1]]
-  d[, id2 :=paste(city_state, holc_id)] # create unique ID
-
-  # stop running if holc_id not unique, i.e. A, B, C, D, E
-  if(unique(d$holc_grade)==unique(d$holc_id) | is.na(unique(d$holc_id)) ){
-    print(paste0('no unique holc_id data ini', i))
-    next
-  }
   
-  # add area  
-  d = merge(d, h[,.(id2, state, area_holc_km2)], by = 'id2',all.x = TRUE)
-  #d[, area_holc_km2:=holc_[id2%in%d$id2[1], area_holc_km2]] # merge
-
-   # Some ebird records have atlas data
-  dd = d[, list( sum_bird_obs = length(species)), by = list(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, area_holc_km2)]
+  make_n_observations = data.frame( #MaPe TODO:check
+    # holc_polygon = unique(df$id),
+    holc_grade = unique(df$holc_grade),
+    holc_polygon = gsub('.Rdata','', basename(i) ),
+    sum_bird_obs = nrow(df),
+    city = unique(df$city),
+    city_state = unique(df$city_state)
+  )
   
-  write.table(dd, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year.csv", append = T, row.names = F,col.names = F, sep = ",") # corresponds to the below R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains further variables
-}
-
-  # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
-  # MaPe added - create data frame per polygon, city_state, year, and collections type
-  # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
-  b =d  
-  b[ ,lat:= decimalLatitude] 
-  b[ ,lon:= decimalLongitude]  
-  bb = d[, list( sum_bird_obs = length(species)), by = list(city_state, city, year, collectionCode, id, holc_polygon, holc_grade, lat, lon, area_holc_km2)]
-  
-  write.table(bb, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year_institution.csv", append = T, row.names = F, sep = ",")
-
-  b2 = b[year >= 2000 & year <= 2020]  
-  b2[collectionCode %in%c('GBBC', 'EBIRD'), collectionCode := 'ebird']  
-  b2[ institutionCode %in% 'iNaturalist', collectionCode := 'iNaturalist']
-  b2[!collectionCode%in%c('ebird','iNaturalist'), collectionCode:='other']
-  bb2 = b2[, list( sum_bird_obs = length(species)), by = list(city_state, city, year, collectionCode, id, id2, holc_polygon, holc_grade, lat, lon, area_holc_km2)]
-  write.table(bb2, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year_institution_2000-2022.csv", append = T, row.names = F, sep = ",")
+  write.table(make_n_observations, file = paste0(outdir, "/R1_biodiv_sum_bird_obs_by_holc_id_1933_2022.csv"), append = T, row.names = F,col.names = F, sep = ",")
   
   # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
   # [2]  Divide biodiversity sampling by year and collection type (iNaturalist, ebird, other) ####
@@ -191,7 +132,33 @@ for(i in unique(aves_obs)[8029:length(aves_obs)]){
     })
   })
 
-  write.table(tmp_by_yar, file = paste0(outdir, "R1_biodiv_trend_by_time_holc_id_1933_2022.csv"), append = T, row.names = F,col.names = F, sep = ",")
+  d = data.table(df)
+  dy = d[, 
+    list(n_obs=length(year)), 
+    by = list(state, city, year, city_state holc_grade, holc_id)
+    ]
+  # pokial je decimalLongitude a decimalLatitude len holc (a niie observation) specific, add it to the list
+  fwrite(d, file = 'R1_biodiv_trend_by_state_city_year_holc_id_1933_2022.csv')
+  
+  ## START HERE then delete
+  mycols = c('species',
+             'family',
+             'genus',
+             'decimalLongitude',
+             'decimalLatitude',
+             'collectionCode',
+             'collectionID',
+             'institutionCode',
+             'year',
+             'city',
+             'city_state',
+             'holc_id',
+             'holc_grade',
+             'species',
+             'id')
+  ##
+
+  write.table(tmp_by_yar, file = paste0(outdir, "/R1_biodiv_trend_by_time_holc_id_1933_2022.csv"), append = T, row.names = F,col.names = F, sep = ",")
   
   # 2000-2020
   df = df %>%  data.frame() %>% dplyr::filter(year >= 2000 & year <= 2020)
@@ -231,7 +198,7 @@ for(i in unique(aves_obs)[8029:length(aves_obs)]){
   
   tmp$holc_polygon <- unique(gsub('.Rdata','', basename(i) ))
   
-  write.table(tmp, file = paste0(outdir, "R1_biodiv_col_code_by_holc_id_2000_2020.csv"), append = T, row.names = F,col.names = F, sep = ",")
+  write.table(tmp, file = paste0(outdir, "/R1_biodiv_col_code_by_holc_id_2000_2020.csv"), append = T, row.names = F,col.names = F, sep = ",")
   
 }
 
@@ -239,21 +206,20 @@ for(i in unique(aves_obs)[8029:length(aves_obs)]){
 # [3] Calculate survey completeness: Out of 195 cities, a few cities cannot be calculated (Houston, San Antonio) ####
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-outdir <- "Data/Estimators"#/Users/diegoellis/Desktop/Estiamtors/"
-dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+outdir <- "/Users/diegoellis/Desktop/Estiamtors/"
 
-cities_i_want = unique(holc$city)#[i] #MaPe here it should be state_city, else same city names from various states are treated as same. i - is not assigned (only in the above scripts, but values from there do not fit here.)
+cities_i_want = unique(holc$city)[i]
 
-for(i in cities_i_want[1:5] ){
-  #i = cities_i_want[2]
+for(i in cities_i_want ){
   ciudad = basename(i)
   print(ciudad)
   
-  biodiv_data <- aves_obs[str_detect(aves_obs, fixed(i))]
-  if (length(biodiv_data) == 0) {
-    message(paste0(i, " has no biodiversity data"))
+  if(!any(str_detect(aves_obs, pattern = i))==TRUE){
+    print(paste0(i, ' has no biodiversity data'))
     next
   }
+  
+  biodiv_data = aves_obs[str_detect(aves_obs, pattern = i)]
   
   results <- sapply(biodiv_data, function(x) mget(load(x)), simplify = TRUE) 
   
@@ -287,36 +253,31 @@ for(i in cities_i_want[1:5] ){
   
   dat = data.frame(dat )%>% dplyr::select(-geometry)
   
-  #dir.exists(paste0(outdir, i))#dir.create(paste0('Data/Estimators', i)) #  dir.exists(paste0(outdir, i,'/'))
-  #setwd(paste0(outdir, i))
+  dir.create(paste0(outdir, i))
+  setwd(paste0(outdir, i))
   
   if(all(is.na(dat$holc_id))){next}
   data("adworld")
   
   city_HOLC = city_HOLC[!st_is_empty(city_HOLC),] %>% dplyr::select(-holc_id)# remove empty polygons
   city_HOLC_sp = as(city_HOLC, 'Spatial') # REMOVE NA polygons ! 
-
-  nrow(city_HOLC_sp)  
-  # ensure city output dir exists
-  city_dir <- file.path(outdir, ciudad)
-  dir.create(city_dir, recursive = TRUE, showWarnings = FALSE)
-
   # KnowBPolygon needs sp object
- owd <- getwd()
- setwd(city_dir)
-    KnowBPolygon(
-      data = dat, format = "A", estimator = 1,
-      shape = city_HOLC_sp, shapenames = "id",
-      jpg = TRUE, Maps = TRUE, save = "RData",
-      legend = TRUE, colscale = cm.cols1(100)
-    )
- setwd(owd)
+  
+  KnowBPolygon(data=dat, format="A", estimator=1,
+               shape=city_HOLC_sp, 
+               shapenames="id", # Set to ID ! #### # holc_id
+               jpg=TRUE,
+               Maps=TRUE,
+               save="RData",
+               legend=TRUE,
+               colscale=cm.cols1(100))
+  
 }
 
 # Once this loop is completed,  proceed on analysing the estimators
 
-#indir <- outdir #"/Users/diegoellis/Desktop/Estimators/"
-estimator_data <- paste0(list.files('Data/', full.names = T), pattern = '/Estimators.Rdata')
+indir <- "/Users/diegoellis/Desktop/Estimators/"
+estimator_data <- paste0(list.files(indir, full.names = T), pattern = '/Estimators.Rdata')
 estimator_data[!file.exists(estimator_data)] # Houston, San Antonio did not run ####
 estimator_data <- estimator_data[file.exists(estimator_data)]
 listForFiles <- list()
@@ -360,7 +321,7 @@ df_completeness = df_completeness[df_completeness$holc_grade %in% c('A', 'B', 'C
 write.csv(df_completeness, file = paste0('/Users/diegoellis/Desktop/Nature_Human_Behavior/bird_completeness_HOLC_summary_2022_R1.csv'))
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
-# [4] Calculate bird biodiversity coldspots #### MaPe - not running because the above one is not running
+# [4] Calculate bird biodiversity coldspots #### 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
 # Calculate Cold-Hot spots based on La Sorte et al. 2020 (Area is the primary correlate of annual and seasonal patterns of avian species richness in urban green spaces) who uses the rationale of Lobo et al. 2018. Instead of removing these areas, we designate them as biodiversity coldspots
@@ -393,11 +354,7 @@ coldspot_regions <- plyr::ddply(coldspots, 'holc_grade', function(x){
 # [5] Add climatic data ####
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
-# Chelsa Bioclims available at chelsa-bioclim.org #TODO: Peto run with ‘We obtained the mean annual precipitation and mean annual temperature built on monthly averages of climate data collected from meteorological stations around the globe from 1979 to 2013 at 1-km2 resolution64’ … Climatic predictors used in our analysis are publicly available through the Chelsa Climatology platform (https://chelsa-climate.org/)’
-
- 
-
-The easiest way to obtain these layers is through https://chelsa-climate.org/. Specifically, mean annual precipitation and mean annual temperature can be downloaded on https://envicloud.wsl.ch/#/?bucket=https%3A%2F%2Fos.zhdk.cloud.switch.ch%2Fchelsav2%2F&prefix=%2F -> Global -> climatologies -> 1980-2010 -ss> bio -> CHELSA_bio1_1981-2010_V.2.1.tif and CHELSA_bio1_1981-2010_V.2.12.tif
+# Chelsa Bioclims available at chelsa-bioclim.org
 
 # Load and project climatic layers
 indir <- '/Users/diegoellis/projects/Manuscripts_collab/phySDM/Input/Env_layers/Bioclims/'
@@ -447,22 +404,21 @@ write.csv(all, file = paste0(outdir, 'R1_climatic_data_cities.csv'))
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
 # Load 2000-2020 data
-outdir = 'original_paper/Data/Biodiv_Greeness_Social' #MaPe
-temporal_2000_2020 = read.table(paste0(outdir, "/R1_biodiv_col_code_by_holc_id_2000_2020.csv"), header= T,sep=',') 
+temporal_2000_2020 = read.table(paste0(outdir, "/R1_biodiv_col_code_by_holc_id_2000_2020.csv"), header= T,sep=',')
 names(temporal_2000_2020) <- c('Type', 'Sum', 'holc_polygon_id')
 temporal_2000_2020$holc_grade = substr(sub(".*?_", "", (sub("_.*?", "", sub("_.*?", "", temporal_2000_2020$holc_polygon_id))) ), 1,1) # 2 holc polygons need to be correctly labeled based on the previous regex. These are all HOLC B polygons
 # temporal_2000_2020[which(temporal_2000_2020$holc_grade =='2'),]$holc_grade <- 'B'
-temporal_2000_2020 = temporal_2000_2020 %>% dplyr::filter(holc_grade  %in% c('A', 'B', 'C', 'D')) 
+temporal_2000_2020 = temporal_2000_2020 %>% filter(holc_grade  %in% c('A', 'B', 'C', 'D')) 
 
 # A few HOLC polygons do not contain any bird observations from 2000-2020 which makes total sense
-temporal_2000_2020 %>% dplyr::filter(Sum > 0) %>% summarise(length(unique(holc_polygon_id)))
+temporal_2000_2020 %>% filter(Sum > 0) %>% summarise(length(unique(holc_polygon_id)))
 sum(temporal_2000_2020$Sum)  # Most of bird biodiversity data in these cities was collected from 2000-2020
 # temporal_2000_2020$Sum = as.numeric(temporal_2000_2020$Sum)
 # Load 1933-2022 data
 temporal_trend = read.table(paste0(outdir, "/R1_biodiv_trend_by_time_holc_id_1933_2022.csv"), header= T,sep=',')
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(temporal_trend) <- c('Year','holc_grade', 'Sum')
-temporal_trend = temporal_trend %>% dplyr::filter(holc_grade != 'E')
+temporal_trend = temporal_trend %>% filter(holc_grade != 'E')
 sum(temporal_2000_2020$Sum,na.rm=T) / sum(temporal_trend$Sum,na.rm=T) # 77.8 % of biodiversity data collected in last 20 years ! 
 
 temporal_all_data = ddply(temporal_trend, 'holc_grade', function(x){
@@ -480,19 +436,19 @@ temporal_all_data = ddply(temporal_trend, 'holc_grade', function(x){
 
 tmpppp = temporal_all_data %>% group_by(holc_grade, Year) # %>% mutate(cumsum = cumsum(n_obs))
 
-trend_A = tmpppp %>% dplyr::filter(holc_grade == 'A') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_A = tmpppp %>% filter(holc_grade == 'A') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_B  = tmpppp %>% dplyr::filter(holc_grade == 'B') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_B  = tmpppp %>% filter(holc_grade == 'B') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_C  = tmpppp %>% dplyr::filter(holc_grade == 'C') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_C  = tmpppp %>% filter(holc_grade == 'C') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_D  = tmpppp %>% dplyr::filter(holc_grade == 'D') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_D  = tmpppp %>% filter(holc_grade == 'D') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
 
 temporal_all_data = rbind(trend_A,trend_B,trend_C,trend_D)
 
 # Plot temporal trend: 2000-2020
 temporal_all_data %>% 
-  dplyr::filter(Year >= 2000 & Year <= 2020) %>% 
+  filter(Year >= 2000 & Year <= 2020) %>% 
   ggplot(aes(x = Year, y = sampling_density), fill = holc_grade) + 
   geom_line(aes(color = holc_grade), size = 1) +
   scale_color_manual(values = holc_pal) +
@@ -507,43 +463,10 @@ ggsave('/Users/diegoellis/Desktop/temporal_biodiv_2000_2020.png'
        , dpi = 600
 )
 
-#MaPe
-d = data.table(temporal_all_data)
-d[Year%in%c(2000,2020) & holc_grade%in%c('A','D')]
-
-## disparity in ration (meaning of it unclear given the similarity in 2000)
-(d[Year%in%c(2020) &  holc_grade%in%c('A'), sampling_density] / d[Year%in%c(2020) &  holc_grade%in%c('D'), sampling_density])/(d[Year%in%c(2000) &  holc_grade%in%c('A'), sampling_density]/
- d[Year%in%c(2000) &  holc_grade%in%c('D'), sampling_density]) #different values than in the main text
-
-## disparity in ration from 2010 to 2020
-(d[Year%in%c(2020) &  holc_grade%in%c('A'), sampling_density] / d[Year%in%c(2020) &  holc_grade%in%c('D'), sampling_density])/(d[Year%in%c(2010) &  holc_grade%in%c('A'), sampling_density]/
- d[Year%in%c(2010) &  holc_grade%in%c('D'), sampling_density])
-
-## check relative disparity over time
-dd = d[holc_grade%in%c('A','D')]
-w <- dd[order(Year),
-            data.table::dcast(.SD, Year ~ holc_grade, value.var = "sampling_density")]
-w[, dispar := A/D]
-
-ggplot(w, aes(x = Year, y = dispar)) + geom_point()
-ggplot(w[Year>1999 & Year<2021], aes(x = Year, y = dispar)) + geom_point() + stat_smooth()
-ggplot(w[Year<2021], aes(x = Year, y = dispar)) + geom_point() + stat_smooth()
-ggplot(w[Year<2021], aes(x = Year, y = dispar)) + geom_point() + stat_smooth(method='lm')
-ggplot(w[Year>1999 & Year<2021], aes(x = Year, y = dispar)) + geom_point() + stat_smooth(method='lm')
-
-ggplot(w[Year>1999 & Year<2021], aes(x = Year, y = dispar)) + 
-  geom_point() + 
-  stat_smooth(method='gam', formula = y ~ s(x, k = 5),method.args = list(method = "REML") )
-
-m = gam(dispar ~ s(Year), data = w)
-summary(m)
-
-
-
 # Save as pdf with nicer ylab axis
 # Plot temporal trend: 2000-2020
 temporal_all_data %>%
-dplyr::filter(Year >= 2000 & Year <= 2020) %>%
+filter(Year >= 2000 & Year <= 2020) %>%
 ggplot(aes(x = Year, y = sampling_density), fill = holc_grade) +
 geom_line(aes(color = holc_grade), size = 1) +
 scale_color_manual(values = holc_pal) +
@@ -557,14 +480,6 @@ ggsave('/Users/diegoellis/Desktop/temporal_biodiv_2000_2020_bw.pdf'
 , dpi = 600
 )
 
-temporal_all_data %>% 
-  dplyr::filter(Year >= 2000 & Year <= 2020) %>% 
-  ggplot(aes(x = Year, y = sampling_density), fill = holc_grade) + 
-  stat_smooth(aes(color = holc_grade), size = 1, se = FALSE) +
-  scale_color_manual(values = holc_pal) +
-  theme_bw(16) + 
-  theme(legend.position = 'none') + 
-  ylab('Sampling density in 1km^2') 
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # [8] Model trends over time ####
@@ -578,20 +493,10 @@ temporal_all_data_tmp$Year <- as.integer(temporal_all_data_tmp$Year)
 # Do the same but for 2000-2020 onwards:
 summary(gam(sampling_density ~ Year * holc_grade, data = temporal_all_data_tmp[temporal_all_data_tmp$Year %in% c(2000:2020),]))
 
-model_sampling = glm((sampling_density) ~ Year* holc_grade, data = temporal_all_data_tmp[temporal_all_data_tmp$Year %in% c(2000:2020),])
+model_sampling = glm((sampling_density) ~ Year * holc_grade, data = temporal_all_data_tmp[temporal_all_data_tmp$Year %in% c(2000:2020),])
 model_sampling |> tab_model( show.aic = TRUE)
-summary(multcomp::glht(model_sampling))
 
 tab_model(model_sampling, auto.label = T)
-
-d = temporal_all_data_tmp[temporal_all_data_tmp$Year %in% c(2000:2020),]
-ggplot(d, aes(sampling_density+0.1)) + geom_density() + scale_x_continuous(trans = 'log10')
-ggplot(d, aes(sampling_density+0.1)) + geom_density()
-m = lm(sampling_density ~ Year* holc_grade, data = d)
-m = lm(sampling_density ~ poly(Year,2) * holc_grade, data = d)
-m = lm(sampling_density ~ poly(Year,2) * holc_grade, data = temporal_all_data_tmp)
-plot(effects::allEffects(m))
-summary(m)
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # [10] Plot by observation type ####
@@ -689,7 +594,7 @@ sum(biodiv_sum$Sum) # Our paper says 10,043,533 georeferenced ocurrences but I h
 # names(biodiv_sum) <- c('holc_polygon_id', 'Sum')
 # biodiv_sum$holc_grade = substr(sub(".*?_", "", (sub("_.*?", "", sub("_.*?", "", biodiv_sum$holc_polygon_id))) ), 1,1) 
 # biodiv_sum[which(biodiv_sum$holc_grade =='2'),]$holc_grade <- 'B'
-biodiv_sum = biodiv_sum %>% dplyr::filter(holc_grade !='E')
+biodiv_sum = biodiv_sum %>% filter(holc_grade !='E')
 
 sum(biodiv_sum$Sum) # Our paper says 10,043,533 georeferenced ocurrences but I have 10,048,895 here
 
