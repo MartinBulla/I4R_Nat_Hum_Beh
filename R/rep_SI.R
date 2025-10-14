@@ -19,11 +19,12 @@
 #+ r setup, include=FALSE 
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
- 
+#'PETO: chcelo by to zjednotit slova code a script - docela casto je tu pouzivane slovo script tam kde ma byt code a opacne. UPRAVIL SOM TO.
+
 #' # General note  
-#' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'.
+#' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors script `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'.
 #' 
-#' Scripts generting the outputs of this html are availalbe upon clicking the `code` button at top right above each display item!
+#' Scripts generating the outputs of this html are available upon clicking the `code` button at top right above each display item!
 #' 
 #' ##### Code to load tools and data
 #+ start, echo = T, results = 'hide', warning=FALSE
@@ -307,9 +308,9 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #'
 #' ## i. Claim about 35.6% change in disparity 
 #' 
-#' We did not find the code generating the 35.6% claim (Abstract p. 1869 & Results p. 1871)and hence could only speculate. Using the authors data on sampling density per year and HOLC grade and calculating the ratio between A/D for  2020 and A/D for 2000 generated a different reult (`r dispar`%). This result seems to reflect the one (40%) from  Fig. 4 legend.
+#' We did not find the code generating the 35.6% claim (Abstract p. 1869 & Results p. 1871), hence could only speculate how this was calculated. Using the authors data on sampling density per year and HOLC grade and calculating the ratio between A/D for 2020 and A/D for 2000 generated a different reult (`r dispar`%). This result seems to reflect the one ("~40%") from  Fig. 4 legend.
 #' 
-#' However, plotting the disparity data show non-linear temporal relationship (Fig. [X](#F_X)A) both after 2000 (left panel) and before 2000 right panel) and depending on the dataset may be even negative for A grade (Fig. [X](#F_X)B). Such results, question the use of arbitrary 2000 and 2020 comparison that is unjustified by the authors, who also do not justify the exclusion of <2000 years. Including those years shows even more complex picture, albeit the <2000 data might be less reliable because online platforms were non-existend (and likely also represent post hoc data entry when the platform arose).
+#' However, plotting the disparity data shows a non-linear temporal relationship (Fig. [X](#F_X)A) both after 2000 (left panel) and before 2000 (right panel) and depending on the dataset may be even negative for A grade (Fig. [X](#F_X)B). Such results question the use of arbitrary 2000 and 2020 comparison, who also do not justify the exclusion of <2000 years. Including <2000 years shows even more complex picture, albeit the <2000 data might be less reliable because online platforms were non-existent (and likely also represent post-hoc data entries after GBIF platform was launched).
 #' 
 #' 
 #+ F_X, fig.width = 15/2.5, fig.height = 15/2.5
@@ -366,17 +367,17 @@ ggdraw(xlim = c(-0.03, 1), ylim = c(-0.03, 1)) +
   draw_plot(p)+
   draw_label("Year", x = 0.2, y = -0.03, vjust = -1, size = 11) +
   draw_label("Relative disparity between HOLC grade A and D\n[%; D as a baseline]", x = -0.03, y = 0.5, angle = 90, vjust = 1.5, size = 11) #ggsave('Output/Fig_X-trends_3-rows_holc-area-b-all.jpg', units = 'cm', width = 15, height = 21)
-
+#' PETO: Chcelo by to trochu odsadit popisok osy y pretoze sa prekryva s hodnotami na ose y. Osa x - Year by som dal bud doprostred laveho a praveho panelu alebo pre kazdy panel oddelene - teraz je len v lavom panely.
 #' <a name="F_X">
-#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (with D being the baseline) based on overall sampling density (i.e. sum of all A or D devided by the overall A or D area; the first two rows) or median sampling density per HOLC grade and year (bottom row). Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represent the aggregation done by the authors, middle and bottom row the aggregation done by us. Note that the authors' dataset did not contain area per year and category; hence, we were unable to compute the median sampling density for their dataset.
-#' 
+#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (with D being the baseline) based on overall sampling density (i.e. sum of all A or D divided by the overall A or D area; the first two rows) or median sampling density per HOLC grade and year (bottom row). Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represent the aggregation done by the authors, middle and bottom row the aggregation done by us. Note that the authors' dataset did not contain area per year and category; hence, we were unable to compute the median/median sampling density for their dataset.
+#' PETO: co tu myslis by overall a sum? Nie su oba jenoducho total?  
 #' TODO: Martin check whether the above is meaningful and whether authors' scripts cannot be tweeked to provide neighberhood ids.
 #' 
 #' 
 #' ## ii. Visualised temporal trends in Fig. 4.
 #' The output that resembles Fig. 4 is located in two places, each yielding different results. 
 #'
-#' (a) According to the authors' [README](original_paper/Code/README_code.md), the code `05_paper_1_analyses_R4_check.Rmd` should contain all key analyses for the paper. We did find a script with the heading “6 trends”, which generates trend lines for all four HOLC categories, but instead for sampling density,  depicted by authors' Fig. 4, it depicts number of HOLC polygons that were sampled (A). To complete the picture, we also show the trends for number of sampling observations (B).
+#' (a) According to the authors' [README](original_paper/Code/README_code.md), the script `05_paper_1_analyses_R4_check.Rmd` should contain all key analyses for the paper. We did find a code with the heading “6 trends”, which generates trend lines for all four HOLC categories, but instead for sampling density,  depicted by authors' Fig. 4, it depicts number of HOLC polygons that were sampled (A). To complete the picture, we also show the trends for number of sampling observations (B).
 #' 
 #+ r_f4_obs, fig.width=20*0.393701,fig.height=9*0.393701 
 
@@ -427,8 +428,8 @@ plot_layout(guides = "collect", axis_titles = 'collect') #; ggsave('Output/Fig_r
 
 #' <a name="F_X2">
 #' **Figure X2</a> | Change in # of sampled polygons (A) and # of observations (B) according to HOLC grade over time.** Each point represents the sum per year. Lines aid the visualisation by connecting the points.
-#' 
-#' (b) We then found that the code `04_R4_uneven_biodiversity_data_2023.R` contains section *[7] Plot temporal trends 1933-2022 and 2000-2020*. The script was not initially running due to absolute folder assignments that were unintuitive regarding the location of the files. We searched for the required files `R1_biodiv_col_code_by_holc_id_2000_2020.csv` and `R1_biodiv_trend_by_time_holc_id_1933_2022.csv` among folders provided by the authors and respecified the folder paths. In addition, the original script loaded packages with conflicting functions. To smoothly reproduce the code, we thus made a new script where we loaded only the relevant packages and only the relevant data. Then the script, thought to generate Fig. 4, run without issues. To aid visualisation we also plotted the points that the line was connecting and an alternative plot where the lines represent locally estimated scatterplot smoothing (LOESS). However, non of these outputs resembls the one from the authors' Fig. 4.<br><br>We then found out that the complex coding, along with the conflicting R-packages multiplied the number of observation (our Fig. O below) and only such data produced the authors' Fig. 4. Specifically, the convoluted chunk of code in `04_R4_uneven_biodiversity_data_2023.R` (L410-20) produces the correct dataset, only if `plyr` R-package is not loaded. When the `plyr` package is loaded in R, the code multiplies the number of observations so that summing of all observation per HOLC grade and year (cumsum_n_obs) gives about 7 times more observations than the acutal number of observations and hence sampling densities per km2 are high. In other words, **our Figure X3 C and D are indeed the correct ones!**. Note, in the initial Fig. 4 the ploted lines just connected the data points (our Fig. X3 A), but fitting a line through the data  produces a more realistic picture (our Fig. X3 B; albeit here using only LOESS, while using model predictions would be more fitting - see later.)
+#' #PETO: V rohu kazdeho panelu je prazdna kulicka bez hodnoty - vymazat
+#' (b) We then found that the script `04_R4_uneven_biodiversity_data_2023.R` contains section *[7] Plot temporal trends 1933-2022 and 2000-2020*. The code was not initially running due to absolute folder assignments that were unintuitive regarding the location of the files. We searched for the required files `R1_biodiv_col_code_by_holc_id_2000_2020.csv` and `R1_biodiv_trend_by_time_holc_id_1933_2022.csv` among folders provided by the authors and respecified the folder paths. In addition, the original code loaded packages with conflicting functions. To smoothly reproduce the code, we thus made a new code where we loaded only the relevant packages and only the relevant data. Then the script, thought to generate Fig. 4, run without issues. To aid visualisation we also plotted the points that the line was connecting and an alternative plot where the lines represent locally estimated scatterplot smoothing (LOESS). However, non of these outputs resembls the one from the authors' Fig. 4.<br><br>We then found out that the complex coding, along with the conflicting R-packages multiplied the number of observation (our Fig. O below) and only such data produced the authors' Fig. 4. Specifically, the convoluted chunk of code in `04_R4_uneven_biodiversity_data_2023.R` (L410-20) produces the correct dataset, only if `plyr` R-package is not loaded. When the `plyr` package is loaded in R, the code multiplies the number of observations so that summing of all observation per HOLC grade and year (cumsum_n_obs) gives about 7 times more observations than the acutal number of observations and hence sampling densities per km2 are high. In other words, **our Figure X3 C and D are indeed the correct ones!**. Note, in the initial Fig. 4 the ploted lines just connected the data points (our Fig. X3 A), but fitting a line through the data  produces a more realistic picture (our Fig. X3 B; albeit here using only LOESS, while using model predictions would be more adequate - see below).
 #'  
 
 #+ r_check_trend_d, fig.width=23*0.393701,fig.height=10*0.393701 
@@ -509,7 +510,7 @@ ggplot(ok, aes(x = sampling_density_ok, y = sampling_density_mul, col = holc_gra
 (cor_a | cor_b) + plot_layout(guides = "collect")#ggsave('Output/Fig_check_wrong_data.jpg', width= 23, height = 10, units ='cm') 
 
 #' <a name="F_O">
-#' **Figure O</a> | Relationship between the correct, true dataset and authors' accidently multiplied one.** Each point represents # of observatinos (A) and sampling density in km2 (B) per HOLC grade and year, point color indicates HOLC grade. Dotted line indicates unity - same value for true and authors' data. 
+#' **Figure O</a> | Relationship between the correct, true dataset and authors' accidently multiplied one.** Each point represents # of observations (A) and sampling density in km2 (B) per HOLC grade and year, point color indicates HOLC grade. Dotted line indicates unity - same value for true and authors' data. 
 #' 
 #+ r_f4_dens, fig.width=20*0.393701,fig.height=15*0.393701 
 # b) 
@@ -633,7 +634,7 @@ ggdraw(xlim = c(-0.03, 1), ylim = c(-0.03, 1)) +
 #' **Figure X3</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations devided by the total are for the given grade). Lines in the left pannels connect the points, in the right panels represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represent the accidently multiplied observations used by the author's, bottom row the correct number of observation.  
 #' 
 #' The corrected figure, we have generated, shows that (i) sampling for all categories was similar until ±2009, then (ii) the differences in sampling between categories likely increased, but (iii) leveled off. Note however, that such differences are easier to see if we plot the relative difference (Fig. [X](F_X)) or the sampling densities of two categories against each other (Fig. [X4](F_X4)).
-#' 
+#' PETO: S tym "but (iii) leveled off." je to osemetne, jak kde...zrovna pre A/D to vyzera, ze ta disparita narasta
 #+ r_fX4_dens, fig.width=21*0.393701,fig.height=14*0.393701
 # all pairwise combinations you want
 pairs <- data.table(
@@ -668,12 +669,12 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 #' **Figure X4</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations per devided by the total are for the given grade) with the year indicated for some of those. Red lines with shaded area represent local regression non-parametric smoothing with its 95% confidence intervals. Dotted line indicates unity, i.e. point on the line highlight same sampling density, above the line higher sampling for y and below the line higher sampling for x.
 #' 
 #'    
-#' Such figures highligh the effects discussed by the authors. However, same as the intended Fig. 4, the data behind these figures are heavily psedoreplicated because they do not account for spatial and temporal non-independence of data points. The figures show that 2020 is an off year and that likely there was the increase areound 2009 and that disparity remained (did not increase much after). 
+#' Such figures highlight the effects discussed by the authors. However, same as the intended Fig. 4, the data behind these figures are heavily psedoreplicated because they do not account for spatial and temporal non-independence of data points. The figures show that 2020 is an off year and that likely there was an increase around 2009 and that disparity remained (did not increase much after). 
 #' 
 #' ## iii. General additive model on temporal trends in Table S4.  
 #' ### Computational reproducibility.
-#' We were initially unable to generate the results found in Table S4. The authors' script provided different outputs, both using multiplied and corrected dataset. However, the scripts contained models where sampling density was not ln-transformed, whereas the description of the authors' Table S4 indicated log-transofmration. Using ln-transfomred sampling density and multiplided dataset did produce the outcome that is visilbe in authors' Table S4  (see below Table [S1](T_S1)).  
-#' 
+#' We were initially unable to generate the results found in Table S4. The authors' code provided different outputs, both using multiplied and corrected dataset. However, the scripts contained models where sampling density was not ln-transformed, whereas the description of the authors' Table S4 indicated log-transformation. Using ln-transformed sampling density and multiplied dataset did produce the outcome that is in authors' Table S4 (see below Table [S1](T_S1)).  
+#' PETO: Table S1a a S1b je uplne totozna. Naviac mali by sme konzistentne pouzivat bud ln alebo log - kludne vyber podla seba
 #' 
 #'  
 #'   
@@ -724,7 +725,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #'
 #' 
 #'
-#' Note, it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussien model was used)
+#' Note, it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used).
 #' 
 
 #+ r_F_Y, fig.width=12*0.393701,fig.height=15*0.393701 
@@ -742,8 +743,8 @@ fy1 =
 ggplot(newD, aes(x = Year, y = fit, colour = holc_grade, fill = holc_grade)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, colour = NA) +
   geom_line(size = 1) +
-  scale_color_manual(values = holc_pal, name = 'HOLZ grade') + 
-  scale_fill_manual(values = holc_pal, name = 'HOLZ grade') + 
+  scale_color_manual(values = holc_pal, name = 'HOLC grade') + 
+  scale_fill_manual(values = holc_pal, name = 'HOLC grade') + 
   labs(y = "Predicted sampling density", x = 'Year', subtitle = 'Ln-scale') +
   theme_light() +
   theme(plot.subtitle = element_text(size = 10, colour = "grey40"),
@@ -758,8 +759,8 @@ fy2 =
 ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade)) +
   geom_ribbon(aes(ymin = lwr_bt, ymax = upr_bt), alpha = 0.2, colour = NA) +
   geom_line(size = 1) +
-  scale_color_manual(values = holc_pal, name = 'HOLZ grade') + 
-  scale_fill_manual(values = holc_pal, name = 'HOLZ grade') + 
+  scale_color_manual(values = holc_pal, name = 'HOLC grade') + 
+  scale_fill_manual(values = holc_pal, name = 'HOLC grade') + 
   labs(y = "Predicted sampling density", x = 'Year', subtitle = 'Original scale [km²]') +
   theme_light() + 
   theme(legend.position = 'none',
@@ -769,7 +770,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
  (fy1 / fy2)+ plot_layout(axis_title = "collect") #; ggsave('Output/Fig_Y.jpg', width= 12, height = 15, units ='cm')   
 
 #' <a name="F_Y">
-#' **Figure Y</a> | Predicted sampling density between HOLC grades over time.** Lines with shaded areas represent generalized additive model predictions of sampling density on ln-scale (top) and km² bottom. N = 84 observations (sum of all observations per year and grade devided by the total area for the given grade). Note, however, that it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussien model was used)
+#' **Figure Y</a> | Predicted sampling density between HOLC grades over time.** Lines with shaded areas represent generalized additive model predictions of sampling density on ln-scale (top) and km² bottom. N = 84 observations (sum of all observations per year and grade divided by the total area for the given grade). Note, however, that it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used).
 #' 
 
 #' ### Robustness reproducibility
@@ -778,7 +779,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #' We then specified mixed-effect models with sampling density (km²) as a response and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors:
 #'   
 #' (1) Random intercept of state, city within state and unique sampling polygon id  
-#' (2) Same as (1) but explicitely nested  
+#' (2) Same as (1) but explicitly nested. 
 #' (3) Same as (1), but with random slope of year within city. 
 #' (4) Same as (1), but with random slope of year within polygon.  
 #' (5) Same as (2), but with random slope of year.  
