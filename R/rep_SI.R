@@ -21,7 +21,7 @@ knitr::opts_knit$set(root.dir = normalizePath(".."))
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
  
 #' # General note  
-#' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'.
+#' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'. TODO:temporal trends per city & model ass
 #' 
 #' Scripts generating the outputs of this html are available upon clicking the `code` button at top right above each display item!
 #' 
@@ -1091,9 +1091,10 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     # combine
     (B1 / B2) + plot_layout(axis_titles = "collect"); #ggsave('Output/Fig_r2_sampling-density.jpg', width = 25, height = 8, units = 'cm') 
 
-#' **Figure r2</a> | Differences in estimated sampling density between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A on ln-scale (TODO: peto do we need this: "for actual values see Fig. [r2b](F_r2b))", horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). Top row contains estimates from the dataset with non-sampled polygons removed, bottom row the full dataset (where a small data-derived offset of 0.125 was added to the sampling density before ln-transformation).
+#' **Figure r2</a> | Differences in estimated sampling density between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A on ln-scale (TODO: peto do we need this: "for actual values see Fig. [r2b](F_r2b))", horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). Top row contains estimates from the dataset with non-sampled polygons removed, bottom row the full dataset (where a small data-derived offset of 0.125 was added to the sampling density before ln-transformation). 
+#'  
 #' <br>
-#' 
+#'   
 #' ## C. Completeness of sampling
 #+ F_r3, fig.width = 25/2.5, fig.height = 8/2.5
 
