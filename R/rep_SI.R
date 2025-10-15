@@ -32,7 +32,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
 
 # 1. load or install packages
 #  TODO:add model assumptions to the below models.
-pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggtext", "grid", "kableExtra", "lme4", "patchwork", "scales","tibble")  # list of packages
+pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggtext", "grid", "kableExtra", "lme4", "mgcv", "patchwork", "scales", "sjPlot", "tibble")  # list of packages
 
 install_if_missing <- function(pkgs) {
   to_install <- setdiff(pkgs, rownames(installed.packages()))
@@ -99,9 +99,9 @@ plot_effects_holc <- function(
 
      pp <- as.data.frame(eff)
      pp[[grade]] <- factor(pp[[grade]])
-     pp$fit_o   <- 10^pp$fit
-     pp$lower_o <- 10^pp$lower
-     pp$upper_o <- 10^pp$upper 
+     pp$fit_o   <- exp(pp$fit)
+     pp$lower_o <- exp(pp$lower)
+     pp$upper_o <- exp(pp$upper) 
 
      # integer 5-year ticks within data range
       yr_rng   <- range(pp[[year]], na.rm = TRUE)
@@ -136,8 +136,8 @@ plot_effects_holc <- function(
      scale_x_continuous(breaks = yr_breaks,
                      labels = scales::number_format(accuracy = 1),
                      minor_breaks = NULL) +
-     labs(x = "Year", y = ylab, subtitle = 'log-scale') +
-     scale_y_continuous(trans='log10')+
+     labs(x = "Year", y = ylab, subtitle = 'ln-scale') +
+     scale_y_continuous(trans='log')+
      theme_light()+
      theme( plot.subtitle = element_text(size = 10, colour = "grey40"))
 
@@ -151,7 +151,7 @@ plot_effects_holc <- function(
                             collapse = " ")))
         else NULL
 
-      g <- (p1 + p2_) + patchwork::plot_layout(guides = "collect")
+      g <- (p1 + p2_) + patchwork::plot_layout(guides = "collect", axis_titles = "collect")
 
       if (!is.null(title_str)) {
         g <- g + patchwork::plot_annotation(
@@ -209,7 +209,7 @@ ext_fixef <- function(m) {
     conf.low = estimate - z*std.error,
     conf.high = estimate + z*std.error
   ) |>
-    mutate( # convert to per-year on the same log10 scale
+    mutate( # convert to per-year on the same log scale
       estimate_per_year = estimate / sdy,
       conf.low_per_year = conf.low / sdy,
       conf.high_per_year= conf.high / sdy
@@ -329,7 +329,7 @@ ext_fixef_D <- function(m) {
     conf.low = estimate - z*std.error,
     conf.high = estimate + z*std.error
   ) |>
-    dplyr::mutate( # convert to per-year on the same log10 scale
+    dplyr::mutate( # convert to per-year on the same log scale
       estimate_per_year = estimate / sdy,
       conf.low_per_year = conf.low / sdy,
       conf.high_per_year= conf.high / sdy
@@ -441,8 +441,18 @@ if(recreate_data==TRUE){
 d = d[!holc_grade%in%c('E')]
 d = d[!area_holc_km2%in%0] # remove polygons with zero area
 
-# create median per year and HOLC
+# Ensure treatment coding with D as baseline (IMPORTANT)
+options(contrasts = c("contr.treatment", "contr.poly"))
+d[, holc_grade_D := factor(holc_grade, levels = c("D","B","C","A"))]
+
+# sampling density
 d[, sampling_density:=sum_bird_obs/area_holc_km2]
+
+# subset
+d00 = d[year >= 2000 & year <= 2020]
+d10 = d[year >= 2010 & year <= 2020]
+
+# create median per year and HOLC
 d_med = d[, .(sampling_density_med = median(sampling_density)), by = .(year, holc_grade)]
 #ggplot(d_med, aes(x = sampling_density_med)) +  geom_density()
 
@@ -450,6 +460,7 @@ d_med = d[, .(sampling_density_med = median(sampling_density)), by = .(year, hol
 dd = d[, .(sum_bird_obs = sum(sum_bird_obs)), by = .(year, holc_grade)] # we have initially used the sum_km2 = sum(area_holc_km2) as well, but because our data are missing neighberhood that had no ID to link them with neighberhood area and hence has fewer sampled neighberhoods and hence smaller area, for consistency with the authors' values, we use their overall area per HOLC grade.
 
 dd = merge(dd,holc_area_sum_b_dt, all.x = TRUE)
+
 
 # sampling density
 dd[, sampling_density := sum_bird_obs/sum_area_holc_km2]
@@ -480,7 +491,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' 
 #+ F_X, fig.width = 15/2.5, fig.height = 15/2.5
 
-# prepare author'sdata
+# prepare authors' data
 a = ttb[holc_grade%in%c('A','D')]
 aw <- a[order(year),
             data.table::dcast(.SD, year ~ holc_grade, value.var = "sampling_density")]
@@ -597,6 +608,7 @@ plot_layout(guides = "collect", axis_titles = 'collect') #; ggsave('Output/Fig_r
 
 #' <a name="F_X2">
 #' **Figure X2</a> | Change in # of sampled polygons (A) and # of observations (B) according to HOLC grade over time.** Each point represents the sum per year. Lines aid the visualisation by connecting the points.
+#' <br>
 #' 
 #' (b) We then found that the code `04_R4_uneven_biodiversity_data_2023.R` contains section *[7] Plot temporal trends 1933-2022 and 2000-2020*. The script was not initially running due to absolute folder assignments that were unintuitive regarding the location of the files. We searched for the required files `R1_biodiv_col_code_by_holc_id_2000_2020.csv` and `R1_biodiv_trend_by_time_holc_id_1933_2022.csv` among folders provided by the authors and respecified the folder paths. In addition, the original script loaded packages with conflicting functions. To smoothly reproduce the code, we thus made a new script where we loaded only the relevant packages and only the relevant data. Then the script, thought to generate Fig. 4, run without issues. To aid visualisation we also plotted the points that the line was connecting and an alternative plot where the lines represent locally estimated scatterplot smoothing (LOESS). However, non of these outputs resembls the one from the authors' Fig. 4.<br><br>We then found out that the complex coding, along with the conflicting R-packages multiplied the number of observation (our Fig. O below) and only such data produced the authors' Fig. 4. Specifically, the convoluted chunk of code in `04_R4_uneven_biodiversity_data_2023.R` (L410-20) produces the correct dataset, only if `plyr` R-package is not loaded. When the `plyr` package is loaded in R, the code multiplies the number of observations so that summing of all observation per HOLC grade and year (cumsum_n_obs) gives about 7 times more observations than the acutal number of observations and hence sampling densities per km² are high. In other words, **our Figure X3 C and D are indeed the correct ones!**. Note, in the initial Fig. 4 the ploted lines just connected the data points (our Fig. X3 A), but fitting a line through the data  produces a more realistic picture (our Fig. X3 B; albeit here using only LOESS, while using model predictions would be more fitting - see later.)
 #'  
@@ -853,8 +865,6 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 #' <a name="T_S1a"> 
 #' **Table S1a | Change in sampling density across time in relations to HOLC grade**</a>
 
-require(mgcv); require(sjPlot)
-
 m_density_mul = glm((sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
 m_density_ok = glm((sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
 
@@ -943,8 +953,8 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
  (fy1 / fy2)+ plot_layout(axis_title = "collect") #; ggsave('Output/Fig_Y.jpg', width= 12, height = 15, units ='cm')   
 
 #' <a name="F_Y">
-#' **Figure Y</a> | Predicted sampling density between HOLC grades over time.** Lines with shaded areas represent generalized additive model predictions of sampling density on ln-scale (top) and km² bottom. N = 84 observations (sum of all observations per year and grade divided by the total area for the given grade). Note, however, that it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used)
-#' 
+#' **Figure Y</a> | Predicted sampling density between HOLC grades over time.** Lines with shaded areas represent generalized additive model predictions of sampling density on ln-scale (top) and km² bottom. N = 84 observations (sum of all observations per year and grade divided by the total area for the given grade). Note, however, that it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used).  
+#' <br>
 #' 
 #' ### Robustness reproducibility
 #' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon (i.e. city-specific HOLC-grades and sampling polygon ids). Note that some polygons are missing polygon ids and hence merging with polygon area was not possible (n = TODO:XX, n = `r nrow(d)` used records).  
@@ -956,30 +966,23 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #' (3) Same as (1), but with random slope of year within city. 
 #' (4) Same as (1), but with random slope of year within polygon.  
 #' (5) Same as (2), but with random slope of year.  
-#' (6) Random slope of year within HOLC grade, nested   within city and state (random intercepts) and separate randome intercept for unique polygon id.   
+#' (6) Random slope of year within HOLC grade, nested   within city and state (random intercepts) and separate randome intercept for unique polygon id.     
 #' <br>  
 #'  
 #' #### A. Contrasts
 #+ F_Z1, fig.width = 25/2.5, fig.height = 15/2.5
-  # Ensure treatment coding with D as baseline (IMPORTANT)
-  options(contrasts = c("contr.treatment", "contr.poly"))
-  d[, holc_grade_D := factor(holc_grade, levels = c("D","B","C","A"))]
-
-  # limit to 2010-2020
-  d00 = d[year >= 2000 & year <= 2020]
-  d10 = d[year >= 2010 & year <= 2020]
 
   # check distributions
-  #ggplot(d, aes(sum_bird_obs))+geom_density() + scale_x_continuous(trans ='log10')
-  #ggplot(d, aes(sampling_density))+geom_density() + scale_x_continuous(trans ='log10')
-  #ggplot(d00, aes(sampling_density))+geom_density() + scale_x_continuous(trans ='log10')
+  #ggplot(d, aes(sum_bird_obs))+geom_density() + scale_x_continuous(trans ='log')
+  #ggplot(d, aes(sampling_density))+geom_density() + scale_x_continuous(trans ='log')
+  #ggplot(d00, aes(sampling_density))+geom_density() + scale_x_continuous(trans ='log')
 
   # MODELS 2000-2020
   # 0) model per holc grade
-  sum_m  <- lm(log10(sampling_density) ~ holc_grade_D*scale(year), tt00)
+  sum_m  <- lm(log(sampling_density) ~ holc_grade_D*scale(year), tt00)
 
   # 1) model set per polygon
-  maD = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  maD = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (1|state) + (1|city_state) + (1|id2), 
               d00,
               control = lmerControl(
@@ -988,7 +991,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
             )
 
-  mbD = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  mbD = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (1|state/city_state/holc_grade/id2), 
               d00,
               control = lmerControl(
@@ -997,7 +1000,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
             )
   
-  mas1D = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  mas1D = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (1|state) + (scale(year)|city_state) + (1|id2), 
               d00,
               control = lmerControl(
@@ -1005,7 +1008,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                   optCtrl = list(maxfun = 2e5)
               )
               )
-  mas2D = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  mas2D = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (1|state) + (scale(year)|city_state) + (1|id2), 
               d00,
               control = lmerControl(
@@ -1013,7 +1016,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                   optCtrl = list(maxfun = 2e5)
               )
               )
-  mbs1D = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  mbs1D = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (scale(year)|state/city_state/holc_grade/id2),
               d00,
               control = lmerControl(
@@ -1022,7 +1025,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-  msab1D = lmer(log10(sampling_density) ~ holc_grade_D*scale(year) + 
+  msab1D = lmer(log(sampling_density) ~ holc_grade_D*scale(year) + 
               (scale(year)|state/city_state/holc_grade) + (1|id2), 
               d00,
               control = lmerControl(
@@ -1056,11 +1059,11 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
-  # 2) Extract fixed effects on the modeling scale (log10), fast Wald CIs
+  # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lm_df <- ext_fixef_D_lm(sum_m) |>
     mutate(
-      type2 = fcase(type == "intercept", "Intercept\n[log10]",
+      type2 = fcase(type == "intercept", "Intercept\n[ln]",
                     type == "slope_per_SDyear", "Slope difference\n[per standard deviation of year]",
                     default = as.character(type)),
       holc_grade_dif = paste0(holc_grade, " vs D")  # match tr1D y labels
@@ -1076,7 +1079,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     mutate(model_label = factor(models_T0020_labels_D[model], levels = models_T0020_order_D)) %>% data.table()
 
   coef_df_0020_D[, type2 := fcase(
-    type == "intercept", "Intercept\n[log10]",
+    type == "intercept", "Intercept\n[ln]",
     type == "slope_per_SDyear", "Slope difference\n[per standard deviation of year]",
     default = as.character(type)
   )]
@@ -1133,10 +1136,10 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 
   # MODELS 2010-2020
   # 0) lm model
-  sum_m_10  <- lm(log10(sampling_density) ~ holc_grade_D*scale(year), tt10)
+  sum_m_10  <- lm(log(sampling_density) ~ holc_grade_D*scale(year), tt10)
 
   # 1) model set
-  ma_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  ma_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
                (1|state) + (1|city_state) + (1|id2), 
                d10,
                control = lmerControl(
@@ -1145,7 +1148,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                )
               )
 
-  mb_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  mb_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
               (1|state/city_state/holc_grade/id2), 
               d10,
               control = lmerControl(
@@ -1154,7 +1157,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
           )
 
-  mas1_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  mas1_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
                 (1|state) + (scale(year)|city_state) + (1|id2), 
                 d10,
                 control = lmerControl(
@@ -1163,7 +1166,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                 )
               )
 
-  mas2_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  mas2_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
                 (1|state) + (1|city_state) + (scale(year)|id2), 
                 d10,
                 control = lmerControl(
@@ -1172,7 +1175,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                 )
               )
 
-  mbs1_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  mbs1_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
                 (scale(year)|state/city_state/holc_grade/id2),
                 d10,
                 control = lmerControl(
@@ -1181,7 +1184,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                 )
               )
 
-  msab1_D = lmer(log10(sampling_density) ~ scale(year)*holc_grade_D + 
+  msab1_D = lmer(log(sampling_density) ~ scale(year)*holc_grade_D + 
                 (scale(year)|state/city_state/holc_grade) + (1|id2), 
                 d10,
                 control = lmerControl(
@@ -1215,11 +1218,11 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     "(year | state / city / HOLC grade ) + (1 | polygon)"
   )
 
-  # 2) Extract fixed effects on the modeling scale (log10), fast Wald CIs
+  # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lm_df_10 <- ext_fixef_D_lm(sum_m_10) |>
     mutate(
-      type2 = fcase(type == "intercept", "Intercept\n[log10]",
+      type2 = fcase(type == "intercept", "Intercept\n[ln]",
                     type == "slope_per_SDyear", "Slope difference\n[per standard deviation of year]",
                     default = as.character(type)),
       holc_grade_dif = paste0(holc_grade, " vs D")  # match tr1D y labels
@@ -1235,7 +1238,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     mutate(model_label = factor(models_T1020_labels_D[model], levels = models_T1020_order_D)) %>% data.table()
 
   coef_df_1020_D[, type2 := fcase(
-    type == "intercept", "Intercept\n[log10]",
+    type == "intercept", "Intercept\n[ln]",
     type == "slope_per_SDyear", "Slope difference\n[per standard deviation of year]",
     default = as.character(type)
   )]
@@ -1342,7 +1345,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   (tr1D_adj / tr2D_adj) + plot_layout(axis_titles = "collect") #; ggsave('Output/rev_Fig_Z1_yr-trend_model-compar_D.png', width= 25, height = 15, units ='cm')
 
 #' <a name="F_Z1">
-#' **Figure Z1</a> | Estimates of sampling density between HOLC grades and over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent differences (in mean values or slopes) relative to HOLC grade D (for actual values see Fig. [Z2](F_Z2)). Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(d00)` polygons with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(d10)`).
+#' **Figure Z1</a> | Estimates of sampling density between HOLC grades and over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent differences (in mean values or slopes) relative to HOLC grade D (for actual values see Fig. [Z2](F_Z2)). Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(d00)` polygons with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(d10)`).  
 #' <br>  
 #'  
 #' #### B. Mean and slope values
@@ -1351,10 +1354,10 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
   # lm model on sum per holc grade
-  sum_mi  <- lm(log10(sampling_density) ~ 0 + holc_grade_D*scale(year), tt00)
+  sum_mi  <- lm(log(sampling_density) ~ 0 + holc_grade_D*scale(year), tt00)
   
   # lmer models on all polygons
-  mai = lmer(log10(sampling_density) ~ 
+  mai = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
             (1|state) + (1|city_state) + (1|id2), 
               d00,
@@ -1364,7 +1367,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
             )
 
-  mbi = lmer(log10(sampling_density) ~ 
+  mbi = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state/city_state/holc_grade/id2), 
               d00,
@@ -1373,7 +1376,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                   optCtrl = list(maxfun = 2e5)
               )
           )
-  mas1i = lmer(log10(sampling_density) ~
+  mas1i = lmer(log(sampling_density) ~
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state) + (scale(year)|city_state) + (1|id2), 
               d00,
@@ -1384,7 +1387,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
 
 
-  mas2i = lmer(log10(sampling_density) ~ 
+  mas2i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state) + (1|city_state) + (scale(year)|id2), 
               d00,
@@ -1394,7 +1397,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-  mbs1i = lmer(log10(sampling_density) ~ 
+  mbs1i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (scale(year)|state/city_state/holc_grade/id2),
               d00,
@@ -1404,7 +1407,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-  msab1i = lmer(log10(sampling_density) ~ 
+  msab1i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (scale(year)|state/city_state/holc_grade) + (1|id2), 
               d00,
@@ -1442,11 +1445,11 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
-  # 3) Extract fixed effects on the modeling scale (log10), fast Wald CIs
+  # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lmi_df <- ext_fixef_lm(sum_mi) |>
     mutate(
-      type2 = fcase(type == "intercept", "Intercept\n[log10]",
+      type2 = fcase(type == "intercept", "Intercept\n[ln]",
                     type == "slope_per_SDyear", "Slope\n[per standard deviation of year]",
                     default = as.character(type))
     )
@@ -1461,7 +1464,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     mutate(model_label = factor(models_T0020_labels[model], levels = models_T0020_order)) %>% data.table()
 
   coef_df_0020[, type2 := fcase(
-    type == "intercept",        "Intercept\n[log10]",
+    type == "intercept",        "Intercept\n[ln]",
     type == "slope_per_SDyear", "Slope\n[per standard deviation of year]",
     default = as.character(type)
   )]
@@ -1517,10 +1520,10 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   # MODELS 2010-2020
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
   # lm model on sum per holc grade
-    sum_m_i  <- lm(log10(sampling_density) ~ 0 + holc_grade_D*scale(year), tt10)
+    sum_m_i  <- lm(log(sampling_density) ~ 0 + holc_grade_D*scale(year), tt10)
 
   # lmer models on all polygons  
-    ma_i = lmer(log10(sampling_density) ~ 
+    ma_i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
             (1|state) + (1|city_state) + (1|id2), 
               d10,
@@ -1530,7 +1533,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
           )
 
-    mb_i = lmer(log10(sampling_density) ~ 
+    mb_i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state/city_state/holc_grade/id2), 
               d10,
@@ -1539,7 +1542,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
                   optCtrl = list(maxfun = 2e5)
               )
           )
-    mas1_i = lmer(log10(sampling_density) ~
+    mas1_i = lmer(log(sampling_density) ~
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state) + (scale(year)|city_state) + (1|id2), 
               d10,
@@ -1549,7 +1552,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-    mas2_i = lmer(log10(sampling_density) ~
+    mas2_i = lmer(log(sampling_density) ~
               0 + holc_grade + holc_grade:scale(year) + 
               (1|state) + (1|city_state) + (scale(year)|id2), 
               d10,
@@ -1559,7 +1562,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-    mbs1_i = lmer(log10(sampling_density) ~ 
+    mbs1_i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (scale(year)|state/city_state/holc_grade/id2),
               d10,
@@ -1569,7 +1572,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
               )
               )
 
-    msab1_i = lmer(log10(sampling_density) ~ 
+    msab1_i = lmer(log(sampling_density) ~ 
               0 + holc_grade + holc_grade:scale(year) + 
               (scale(year)|state/city_state/holc_grade) + (1|id2), 
               d10,
@@ -1608,11 +1611,11 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
-  # 3) Extract fixed effects on the modeling scale (log10), fast Wald CIs
+  # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lmi_df_10 <- ext_fixef_lm(sum_m_i) |>
     mutate(
-      type2 = fcase(type == "intercept", "Intercept\n[log10]",
+      type2 = fcase(type == "intercept", "Intercept\n[ln]",
                     type == "slope_per_SDyear", "Slope\n[per standard deviation of year]",
                     default = as.character(type))
     )
@@ -1627,7 +1630,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     mutate(model_label = factor(models_T1020_labels[model], levels = models_T1020_order)) %>% data.table()
 
   coef_df_1020[, type2 := fcase(
-    type == "intercept",        "Intercept\n[log10]",
+    type == "intercept",        "Intercept\n[ln]",
     type == "slope_per_SDyear", "Slope\n[per standard deviation of year]",
     default = as.character(type)
   )]
@@ -1731,26 +1734,26 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     (tr1_adj / tr2_adj) + plot_layout(axis_titles = "collect") #; ggsave('Output/rev_Fig_Z2_yr-trend_model-compar_D.png', width= 25, height = 15, units ='cm')
 
 #' <a name="F_Z2">
-#' **Figure Z2</a> | Estimates of sampling density between HOLC grades and over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent true values (as oposed to the contrasts depicted in Fig. [Z1](Z1)) Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(tt00)` sampling densities per grade and year for the linear model, and n = `r nrow(d00)` sampling densities for each polygon with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(tt10)` and n = `r nrow(d10)` respectively).  
+#' **Figure Z2</a> | Estimates of sampling density between HOLC grades  over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent true values (as oposed to the contrasts depicted in Fig. [Z1](Z1)) Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(tt00)` sampling densities per grade and year for the linear model, and n = `r nrow(d00)` sampling densities for each polygon with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(tt10)` and n = `r nrow(d10)` respectively).  
 #' <br>
 #'  
 #' #### C. visualise predicted relationships
-#' In the following graphs the lines and shaded areas represent predicted relationship between sampling density (km² right panels, log(km²) left panels) and year of data collection according to HOLC grade (color). The first plot in each setion is for the linear model on the aggregated observations per year and HOLC grade, the remaining mixed effect models use data on each polygon.
-#' 
+#' **Figure Z3</a> | Predictions of sampling density between HOLC grades  over time.** In the below graphs the lines and shaded areas represent predicted relationship between sampling density (km² - right panels, log(km²) - left panels) and year of data collection according to HOLC grade (color). The first plot in each section (2000-2020 and 2010-2020) is based on a linear model fitted to sampling density for each year (overal number of observations devided by overall HOLC grade area; n = `r nrow(tt00)` for 2000-2020 and `r nrow(tt10)` for 2010-2020) and the remaining plots are based on mixed-effect models fitted to samplind density for each HOLC neighberhood (polygon; n = `r nrow(d00)` for 2000-2020 and `r nrow(d10)` for 2010-2020).  
+#' <br>
 #' 
 #' ##### 2000-2020
 #+ F_Z3x, fig.width = 14/2.5, fig.height = 6/2.5
-sum_m_  <- lm(log10(sampling_density) ~ scale(year)*holc_grade, tt00)
+sum_m_  <- lm(log(sampling_density) ~ scale(year)*holc_grade, tt00)
 print(plot_effects_holc(sum_m_, tt00, palette = holc_pal, outdir='Output/trend/Oct', save_png = FALSE))    
 
 #+ F_Z3a, fig.width = 14/2.5, fig.height = 6/2.5
-ma = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+ma = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (1|city_state) + (1|id2), 
             d00)
 print(plot_effects_holc(ma, d00, palette = holc_pal, outdir='Output/trend/Oct', save_png = FALSE))    
 
 #+ F_Z3b, fig.width = 14/2.5, fig.height = 6/2.5
-mb = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mb = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state/city_state/holc_grade/id2), 
             d00,
             control = lmerControl(
@@ -1761,7 +1764,7 @@ mb = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mb, d00, palette = holc_pal, outdir = 'Output/trend/Oct', save_png = FALSE)
 
 #+ F_Z3c, fig.width = 14/2.5, fig.height = 6/2.5
-mas1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mas1 = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (scale(year)|city_state) + (1|id2), 
             d00,
             control = lmerControl(
@@ -1772,7 +1775,7 @@ mas1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mas1, d00, palette = holc_pal, outdir = 'Output/trend/Oct', save_png = FALSE)
 
 #+ F_Z3d, fig.width = 14/2.5, fig.height = 6/2.5
-mas2 = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mas2 = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (1|city_state) + (scale(year)|id2), 
             d00,
             control = lmerControl(
@@ -1783,7 +1786,7 @@ mas2 = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mas2, d00, palette = holc_pal, outdir = 'Output/trend/Oct', save_png = FALSE)
 
 #+ F_Z3e, fig.width = 14/2.5, fig.height = 6/2.5
-mbs1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mbs1 = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (scale(year)|state/city_state/holc_grade/id2),
             d00,
             control = lmerControl(
@@ -1794,7 +1797,7 @@ mbs1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mbs1, d00, palette = holc_pal, outdir = 'Output/trend/Oct', save_png = FALSE)
 
 #+ F_Z3f, fig.width = 14/2.5, fig.height = 6/2.5
-msab1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+msab1 = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (scale(year)|state/city_state/holc_grade) + (1|id2), 
             d00,
             control = lmerControl(
@@ -1803,14 +1806,15 @@ msab1 = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
             )
             ) 
 plot_effects_holc(msab1, d00, palette = holc_pal, outdir = 'Output/trend/Oct', save_png = FALSE)
-#'  
+#' 
+#' <br>
 #'  
 #' ##### 2010-2020
 #+ F_Z4x, fig.width = 14/2.5, fig.height = 6/2.5
-sum_m_10  <- lm(log10(sampling_density) ~ scale(year)*holc_grade, tt10)
+sum_m_10  <- lm(log(sampling_density) ~ scale(year)*holc_grade, tt10)
 print(plot_effects_holc(sum_m_10, tt10, palette = holc_pal, outdir='Output/trend/Oct', save_png = FALSE))  
 #+ F_Z4a, fig.width = 14/2.5, fig.height = 6/2.5
-ma_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+ma_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (1|city_state) + (1|id2), 
             d10,
             control = lmerControl(
@@ -1821,7 +1825,7 @@ ma_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(ma_, d10, palette = holc_pal, outdir='Output/trend/Oct', ver ='v1_10-20', save_png = FALSE)
 
 #+ F_Z4b, fig.width = 14/2.5, fig.height = 6/2.5
-mb_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mb_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state/city_state/holc_grade/id2), 
             d10,
             control = lmerControl(
@@ -1832,7 +1836,7 @@ mb_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mb_, d10, palette = holc_pal, outdir = 'Output/trend/Oct', ver ='v1_10-20', save_png = FALSE)
 
 #+ F_Z4c, fig.width = 14/2.5, fig.height = 6/2.5
-mas1_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mas1_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (scale(year)|city_state) + (1|id2), 
             d10,
             control = lmerControl(
@@ -1843,7 +1847,7 @@ mas1_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mas1_, d10, palette = holc_pal, outdir = 'Output/trend/Oct', ver ='v1_10-20')
 
 #+ F_Z4d, fig.width = 14/2.5, fig.height = 6/2.5
-mas2_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mas2_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (1|state) + (1|city_state) + (scale(year)|id2), 
             d10,
             control = lmerControl(
@@ -1854,7 +1858,7 @@ mas2_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mas2_, d10, palette = holc_pal, outdir = 'Output/trend/Oct', ver ='v1_10-20', save_png = FALSE)
 
 #+ F_Z4e, fig.width = 14/2.5, fig.height = 6/2.5
-mbs1_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+mbs1_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (scale(year)|state/city_state/holc_grade/id2),
             d10,
             control = lmerControl(
@@ -1865,7 +1869,7 @@ mbs1_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade +
 plot_effects_holc(mbs1_, d10, palette = holc_pal, outdir = 'Output/trend/Oct', ver ='v1_10-20', save_png = FALSE)
 
 #+ F_Z4f, fig.width = 14/2.5, fig.height = 6/2.5
-msab1_ = lmer(log10(sampling_density) ~ scale(year)*holc_grade + 
+msab1_ = lmer(log(sampling_density) ~ scale(year)*holc_grade + 
             (scale(year)|state/city_state/holc_grade) + (1|id2), 
             d10,
             control = lmerControl(
@@ -1883,7 +1887,9 @@ plot_effects_holc(msab1_, d10, palette = holc_pal, outdir = 'Output/trend/Oct', 
 #' 
 #' ***
 #' 
-#' # Session info
+#' # Session info  
+#' <br>
+#' 
 #' <a name="T_S2">
 #' **Table S2 | System session info.** </a>
 df_session_platform <- devtools::session_info()$platform %>%
@@ -1896,8 +1902,8 @@ colnames(df_session_platform) <- c("Item", "Value")
 df_session_platform %>%
   kableExtra::kbl(align=c('r', 'l'), linesep = "") %>%
   kableExtra::kable_paper(c("striped", "condensed"), full_width = F, position = "left")
-#'  
-#'   
+#'    
+#' <br>   
 #'
 #' <a name="T_S3">
 #' **Table S3 | Info about used packages.** </a>
