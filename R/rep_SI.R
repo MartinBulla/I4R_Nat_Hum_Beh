@@ -858,7 +858,7 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 #'  
 #' ## iii. General additive model on temporal trends in Table S4 
 #' ### Computational reproducibility
-#' We were initially unable to generate the results found in Table S4. The authors' script provided different outputs, both using multiplied and corrected dataset. However, the scripts contained models where sampling density was not ln-transformed, whereas the description of the authors' Table S4 indicated log-transformation. Using ln-transfomred sampling density and multiplied dataset did produce the outcome that is in authors' Table S4 (see below Table [S1](T_S1)).  
+#' We were initially unable to generate the results found in Table S4. The authors' script provided different outputs, both using multiplied and corrected dataset. However, the scripts contained models where sampling density was not ln-transformed, whereas the description of the authors' Table S4 indicated log-transformation. Using ln-transformed sampling density and multiplied dataset did produce the outcome that is in authors' Table S4 (see below Table [S1](T_S1)).  
 #' 
 #' <br>
 #'    
@@ -868,7 +868,7 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 m_density_mul = glm((sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
 m_density_ok = glm((sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
 
-tab_model(m_density_mul, m_density_ok,  auto.label = T, string.ci='95%CI', title = "Generalized linear model", dv.labels = c("Multiplied # of observations", "Actual # of observations")) # m = lm(log(sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)]); summary(glht(m)) # gives even less clear relationship
+tab_model(m_density_mul, m_density_ok,  auto.label = T, string.ci='95% CI', title = "Generalized linear model", dv.labels = c("Multiplied # of observations", "Actual # of observations")) # m = lm(log(sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)]); summary(glht(m)) # gives even less clear relationship
 #' ***
 #' 
 #' <br>
@@ -908,7 +908,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' <br>
 #' 
-#' Note, it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used)
+#' Note, it is unclear why generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used).
 #' 
 
 #+ r_F_Y, fig.width=12*0.393701,fig.height=15*0.393701 
@@ -961,8 +961,8 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #' 
 #' We then specified mixed-effect models with sampling density (km²) as a response and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors:
 #'   
-#' (1) Random intercept of state, city within state and unique sampling polygon id  
-#' (2) Same as (1) but explicitly nested  
+#' (1) Random intercept of state, city within state and unique sampling polygon id. 
+#' (2) Same as (1) but explicitly nested.
 #' (3) Same as (1), but with random slope of year within city. 
 #' (4) Same as (1), but with random slope of year within polygon.  
 #' (5) Same as (2), but with random slope of year.  
@@ -1349,6 +1349,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #' <br>  
 #'  
 #' #### B. Mean and slope values
+#' PETO: O tom asi vies, ale davam tu poznamku ze graf je rozlietany aby sme na to nezabudli
 #+ F_Z2, fig.width = 25/2.5, fig.height = 15/2.5
   # MODELS 2000-2020
   
@@ -1734,11 +1735,11 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
     (tr1_adj / tr2_adj) + plot_layout(axis_titles = "collect") #; ggsave('Output/rev_Fig_Z2_yr-trend_model-compar_D.png', width= 25, height = 15, units ='cm')
 
 #' <a name="F_Z2">
-#' **Figure Z2</a> | Estimates of sampling density between HOLC grades  over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent true values (as oposed to the contrasts depicted in Fig. [Z1](Z1)) Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(tt00)` sampling densities per grade and year for the linear model, and n = `r nrow(d00)` sampling densities for each polygon with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(tt10)` and n = `r nrow(d10)` respectively).  
+#' **Figure Z2</a> | Estimates of sampling density between HOLC grades  over time.** Dots represent estimates (on log-scale), horizontal lines 95%CIs, color indicates a random-effects model structure (with variables  left from `|` indicating random slopes and right from `|` indicating random intercepts, whereas '/' indicates nested intercepts). The depicted estimates represent true values (as oposed to the contrasts depicted in Fig. [Z1](Z1)) Top row contains estimates for a dataset spanning from 2000 until 2020 (n = `r nrow(tt00)` sampling densities per grade and year for the linear model, and n = `r nrow(d00)` sampling densities for each polygon with known area) and bottom row for a dataset from 2010 until 2020 (n = `r nrow(tt10)` and n = `r nrow(d10)`, respectively).  
 #' <br>
 #'  
 #' #### C. visualise predicted relationships
-#' **Figure Z3</a> | Predictions of sampling density between HOLC grades  over time.** In the below graphs the lines and shaded areas represent predicted relationship between sampling density (km² - right panels, log(km²) - left panels) and year of data collection according to HOLC grade (color). The first plot in each section (2000-2020 and 2010-2020) is based on a linear model fitted to sampling density for each year (overal number of observations devided by overall HOLC grade area; n = `r nrow(tt00)` for 2000-2020 and `r nrow(tt10)` for 2010-2020) and the remaining plots are based on mixed-effect models fitted to samplind density for each HOLC neighberhood (polygon; n = `r nrow(d00)` for 2000-2020 and `r nrow(d10)` for 2010-2020).  
+#' **Figure Z3</a> | Predictions of sampling density between HOLC grades  over time.** In the below graphs, the lines and shaded areas represent predicted relationship between sampling density (km² - right panels, log(km²) - left panels) and year of data collection according to HOLC grade (color). The first plot in each section (2000-2020 and 2010-2020) is based on a linear model fitted to sampling density for each year (overal number of observations devided by overall HOLC grade area; n = `r nrow(tt00)` for 2000-2020 and `r nrow(tt10)` for 2010-2020) and the remaining plots are based on mixed-effect models fitted to samplind density for each HOLC neighbourhood (polygon; n = `r nrow(d00)` for 2000-2020 and `r nrow(d10)` for 2010-2020, respectively).  
 #' <br>
 #' 
 #' ##### 2000-2020
