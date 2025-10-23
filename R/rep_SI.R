@@ -37,7 +37,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
 
 # 1. load or install packages
 #  TODO:add model assumptions to the below models.
-pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggsci","ggtext", "grid", "kableExtra", "lme4", "mgcv", "patchwork", "readr", "scales", "sjPlot", "tibble", "tidyverse")  # list of packages
+pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggsci","ggtext", "grid", "gtable", "kableExtra", "lme4", "mgcv", "patchwork", "readr", "scales", "sjPlot", "tibble", "tidyverse")  # list of packages
 
 install_if_missing <- function(pkgs) {
   to_install <- setdiff(pkgs, rownames(installed.packages()))
@@ -217,7 +217,7 @@ ext_fixef <- function(m) {
     conf.low = estimate - z*std.error,
     conf.high = estimate + z*std.error
   ) |>
-    mutate( # convert to per-year on the same log scale
+    dplyr::mutate( # convert to per-year on the same log scale
       estimate_per_year = estimate / sdy,
       conf.low_per_year = conf.low / sdy,
       conf.high_per_year= conf.high / sdy
@@ -360,14 +360,14 @@ ext_fixef_D_lm <- function(m) {
     type = "intercept", holc_grade = lev(ints_n),
     estimate = fe[ints_n], std.error = se[ints_n]
   ) |>
-    mutate(conf.low = estimate - z*std.error,
+    dplyr::mutate(conf.low = estimate - z*std.error,
            conf.high = estimate + z*std.error)
 
   slps <- tibble(
     type = "slope_per_SDyear", holc_grade = lev(slps_n),
     estimate = fe[slps_n], std.error = se[slps_n]
   ) |>
-    mutate(conf.low = estimate - z*std.error,
+    dplyr::mutate(conf.low = estimate - z*std.error,
            conf.high = estimate + z*std.error,
            estimate_per_year = estimate / sdy,
            conf.low_per_year = conf.low / sdy,
@@ -384,18 +384,18 @@ ext_fixef_D_lm <- function(m) {
                                     , msa_gini))
   birds_records <- 
     read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_sum_bird_obs_by_holc_id_1933_2022.csv') |> 
-    mutate(id = str_remove(id, '_Aves_all_observations')) |> 
-    select(id, records = N_samples)
+    dplyr::mutate(id = str_remove(id, '_Aves_all_observations')) |> 
+    dplyr::select(id, records = N_samples)
   
   birds_completeness <-
     read_csv('original_paper/Data/Biodiv_Greeness_Social/bird_completeness_HOLC_cities_2022_R1.csv') |> 
-    select(id, completeness = Completeness) |> 
+    dplyr::select(id, completeness = Completeness) |> 
     tidylog::mutate(id = ifelse(id == 'VA_Roanoke_B2\\r\\n2_B_9289', 'VA_Roanoke_B2\r\n2_B_9289', id))
   
   birds_source <- 
     read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv') |> 
-    mutate(id = str_remove(id, '_Aves_all_observations')) |> 
-    select(id, records = N_samples, type = Collection_code) |> 
+    dplyr::mutate(id = str_remove(id, '_Aves_all_observations')) |> 
+    dplyr::select(id, records = N_samples, type = Collection_code) |> 
     pivot_wider(id_cols = id, names_from = type, values_from = records)
   
   clim <- read_csv('original_paper/Data/Biodiv_Greeness_Social/climatic_data_cities.csv'
@@ -404,8 +404,8 @@ ext_fixef_D_lm <- function(m) {
                                     , mean_precip_mm = mean_precip)
                    )
   green <- read_csv('original_paper/Data/Biodiv_Greeness_Social/NDVI_unique_ID_updated.csv') %>% 
-        mutate(ndvi = ifelse(is.na(ndvi), median(.$ndvi, na.rm = TRUE), ndvi)) |> # interpolated missing
-        select(id, ndvi)
+        dplyr::mutate(ndvi = ifelse(is.na(ndvi), median(.$ndvi, na.rm = TRUE), ndvi)) |> # interpolated missing
+        dplyr::select(id, ndvi)
         
   pad <- read_csv('Data/NDVI_PAD_unique_ID.csv'#'original_paper/Data/Biodiv_Greeness_Social/NDVI_PAD_unique_ID.csv' 
                  , col_select = c(id, pct_pa = percent_pa))
@@ -417,7 +417,7 @@ ext_fixef_D_lm <- function(m) {
     left_join(clim, by = 'city') |> # adds temp and precip
     left_join(green, by = 'id') |> # adds green 
     left_join(pad, by = 'id') |> # adds protected areas
-    mutate(
+    dplyr::mutate(
         pop_per_km           = ifelse(is.na(holc_tot_pop), 0, holc_tot_pop / area_holc_km2)
         , sampling_density     = records / area_holc_km2
         , sampling_density_log = log(sampling_density)
@@ -542,45 +542,52 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' ***
 #' 
 #' # 1. HOLC grade differences
-#' The authors investigated how HOLC grades differ in bird sampling using three response variables:  
-#' A. A neighbourhoods sampled or not (binary outcome).  
-#' B. Sampling density (km²).   
-#' C. Completeness of sampling.  
+#' The authors investigated how HOLC grades differ in bird sampling using three response variables:
+#'    
+#' (A) A neighbourhoods sampled or not (binary outcome).  
+#' (B) Sampling density (km²).    
+#' (C) Completeness of sampling.  
+#'    
 #' Accordingly, three sets the authors fitted three sets of models. However, the Methods are ambiguous about the number of models fitted, as it is unclear whether the various predictors were added one by one or at once, as well as about the variables used. Moreover, the described model structures do not seem to fit with the one presented in the script `05_paper_1_analyses_R4.Rmd`. Specifically, the authors note “The simplest null model (intercept only) was fit and fixed effects for HOLC (primary variable of interest) were added. Next, the following terms were added: metropolitan statistical area (MSA) as a random intercept, HOLC grade as a random slope, and fixed effects for NDVI, percent open space and population density as random slopes within HOLC-defined city for mean temperature and precipitation (climate) interaction.” (p. 1875)[@ellis-soto_historical_2023]. This description makes (i) unclear what variables were fitted as fixed or random slopes and whehter the terms were added sequentially or into a single complex model. Importantly, the authors do not describe response specific models; hence, we assumed that they fitted the same model structure to all three response variables.    
 #' <br>
-#' **First**, we show how we interpret the above model specification showing fixed effects and random effects of the model with random effects being enclosed in paranthesis with the term in front of `|` representing random slope, the term after `|` representing random intercepts, explicitly nested terms connected by `/` and interaction by `:`: 
-#' 1. ~ 1 (intercept only model)  
-#' 2. ~ HOLC grade 
-#' 3. ~ HOLC grade + (1 | metropolitan area) 
-#' 4. ~ HOLC grade + (HOLC grade | metropolitan are)
-#' 5. ~ HOLC grade + other predictors + (HOLC grade | metropolitan area)  
-#' 6. ~ HOLC grade + other predictors + (HOLC grade | metropolitan area) + (HOLC grade | metropolitan area) + (temperature : precipitation | city )
+#' **First**, we show how we interpret the above model specification showing fixed effects and random effects of the model with random effects being enclosed in paranthesis with the term in front of `|` representing random slope, the term after `|` representing random intercepts, explicitly nested terms connected by `/` and interaction by `:`:  
+#' 
+#' (1) ~ 1 (intercept only model)  
+#' (2) ~ HOLC grade  
+#' (3) ~ HOLC grade + (1 | metropolitan area)  
+#' (4) ~ HOLC grade + (HOLC grade | metropolitan area)  
+#' (5) ~ HOLC grade + other predictors + (HOLC grade | metropolitan area)  
+#' (6) ~ HOLC grade + other predictors + (HOLC grade | metropolitan area) + (HOLC grade | metropolitan area) + (temperature : precipitation | city )  
+#'  
 #' Where (5) and (6) possibly represent multiple models where each predictor (NDVI, open space (%), population density (per km²), and perhaps mean temperature and precipitation) was added one by one.  
-#' <br>
+#'  
 #'  Note that the authors also do not describe any check of model assumptions and we found none in theirs scripts.  
 #' <br>
 #' **Second**, the script revealed that, e.g. for neighbourhoods sampled (binary respons), three models seemed to have been fitted. Model 3 and 4 described above and a complex model, not described in the Methods:  
+#' 
 #' 7. ~ HOLC grade + NDVI + open space + population density + (1 + HOLC grade + msa_gini | metropolitan area) + (1 + temperature : precipitation | city)  
+#'  
 #' This model resambles a model described in the Method, i.e. model (6) above, but with essential nuance: two random slopes are fitted within metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents Gini index of household income inequality at the level of metropolitan area (having same n). Given that  has the same number of levels as metropolitan are, `msa_gini` cannot be fitted as random slope within metropolitan area, i.e. the model is misspecified.  
 #'  
 #' The model sets for the other two responses suffer from similar issues. For example, `msa_medhhincE` random slope within metropolitan area suffers from the same issues as `msa_gini`, i.e. is not defined in the main text and thus its meaning is unclear, and has similar (less) number of unique values as the metropolitan area within which it was fitted, leading to model misspecification. Similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations).  
 #'  
 #' The script contains 10 - 12 models for sampling density and 10 models for sampling completeness. The authors nowhere justify the need for specifying their complex random structures and comparing so many models. TODO: Peto please add bibtext citation for the 5-8 to the Resources/_bib.bib and here add those as you see for Akaike2025 below.  
-#' 
+#' <br>
 #' **Third**, the authors compared  models within each set and selected the best one using Akaike information criterion (AIC)[@Akaike2025], a method that is the most robust only if the compared models have the same random effect structure TODO:Peto add citation 10 here). However, the authors compared models differing in both fixed and random effects, a practice advided against TODO:Peto again add citations, and making such comparison invalid. 
-#' 
+#'  
 #' We believe that the authors should have fitted one complex model that is controlled for all discussed variables as well as non-indepence of data points. Their data with n around 9,000 neighbourhoods and clear data structure allows that. If in doubt, fitting a simpler model and comparing its estimates witht the complex one would suffice.
-#' 
+#'  
 #' Here, we respecified the model set for each response and compared the model estimates. We include plausible models from the authors' set and included further models either with HOLC grade as a single fixed effect (simple models) or including also all other continues control variables (discussed by the authors) as fixed effects (NDVI, open space (%), population density (per km²), mean temperature and mean precipitation; full model). For our simple and full modle we varied the random structure (i) to mirror the authors' logic, but using only discussed and meaningful variables (e.g. excluding random slopes with same number of levels as the corresponding random intercept), and (ii) to account for non-independence of data points. The sets included the following models where those with random intercept of `metropolitan area` indicate the authors' ones, and those with random intercept of `city` ours. Note that we use city (unique across the dataset), instead of the metropolitan area (as city has more levels).  
-#' 1. ~ HOLC grade + (1 | metropolitan area)     
-#' 2. ~ HOLC grade + (1 | city)  
-#' 3. ~ HOLC grade + (1 + HOLC grade | metropolitan area)  
-#' 4. ~ HOLC grade + (HOLC grade | city)  
-#' 5. ~ HOLC grade + (HOLC grade numeric | city)    
-#' 6. ~ HOLC grade + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)  
-#' 7. ~ HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)  
-#' 8. ~ HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)  
-#' 9. ~ HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1|state) + (HOLC grade | city)  
+#'  
+#' (1) ~ HOLC grade + (1 | metropolitan area)     
+#' (2) ~ HOLC grade + (1 | city)  
+#' (3) ~ HOLC grade + (1 + HOLC grade | metropolitan area)  
+#' (4) ~ HOLC grade + (HOLC grade | city)  
+#' (5) ~ HOLC grade + (HOLC grade numeric | city)    
+#' (6) ~ HOLC grade + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)  
+#' (7) ~ HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)  
+#' (8) ~ HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)  
+#' (9) ~ HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1|state) + (HOLC grade | city)  
 #' 
 #' Note that for the neighbourhoods samples authors did not use the model (6) and hence we have not specified it. Also, we have attempted a model with random intercepts of state, metropolitan area and city, but those models converged poorly (similar levels for metropolitan are adn city). Our go for model is the number 9 because it controls for the variables intended by the authors and best addresses the non-independence of data points.  
 #' 
@@ -690,17 +697,17 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     coef_df_A <- purrr::imap_dfr(models_A, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
     coef_df_A <- coef_df_A %>%
-    mutate(model_label = factor(model_labels_A[model], levels = models_A_order)) %>% data.table()
+    dplyr::mutate(model_label = factor(model_labels_A[model], levels = models_A_order)) %>% data.table()
 
     # distinquish original models from our alternative ones
     coef_df_A <- coef_df_A %>%
-    mutate(
+    dplyr::mutate(
         model_group = ifelse(grepl("^samp", model), "Authors' original", "Our new"),
         model_label = model_labels_A[model]
     )
 
     coef_df_A <- coef_df_A %>%
-    mutate(model_label = factor(model_label, levels = models_A_order))
+    dplyr::mutate(model_label = factor(model_label, levels = models_A_order))
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -822,17 +829,17 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     coef_df_A_g <- purrr::imap_dfr(models_A_g, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
     coef_df_A_g <- coef_df_A_g %>%
-    mutate(model_label = factor(model_labels_A_g[model], levels = models_A_order_g)) %>% data.table()
+    dplyr::mutate(model_label = factor(model_labels_A_g[model], levels = models_A_order_g)) %>% data.table()
 
     # distinquish original models from our alternative ones
     coef_df_A_g <- coef_df_A_g %>%
-    mutate(
+    dplyr::mutate(
         model_group = ifelse(grepl("^samp", model), "Authors' original", "Our new"),
         model_label = model_labels_A_g[model]
     )
 
     coef_df_A_g <- coef_df_A_g %>%
-    mutate(model_label = factor(model_label, levels = models_A_order_g))
+    dplyr::mutate(model_label = factor(model_label, levels = models_A_order_g))
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -980,17 +987,17 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     coef_df_B <- purrr::imap_dfr(models_B, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
     coef_df_B <- coef_df_B %>%
-    mutate(model_label = factor(model_labels_B[model], levels = models_B_order)) %>% data.table()
+    dplyr::mutate(model_label = factor(model_labels_B[model], levels = models_B_order)) %>% data.table()
 
     # distinquish original models from our alternative ones
     coef_df_B <- coef_df_B %>%
-    mutate(
+    dplyr::mutate(
         model_group = ifelse(grepl("^d_", model), "Authors' original", "Our new"),
         model_label = model_labels_B[model]
     )
 
     coef_df_B <- coef_df_B %>%
-    mutate(model_label = factor(model_label, levels = models_B_order))
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order))
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -1137,17 +1144,17 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     coef_df_B_a  <- purrr::imap_dfr(models_B_a , ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
     coef_df_B_a  <- coef_df_B_a  %>%
-    mutate(model_label = factor(model_labels_B_a [model], levels = models_B_order_a )) %>% data.table()
+    dplyr::mutate(model_label = factor(model_labels_B_a [model], levels = models_B_order_a )) %>% data.table()
 
     # distinquish original models from our alternative ones
     coef_df_B_a  <- coef_df_B_a  %>%
-    mutate(
+    dplyr::mutate(
         model_group = ifelse(grepl("^d_", model), "Authors' original", "Our new"),
         model_label = model_labels_B_a [model]
     )
 
     coef_df_B_a  <- coef_df_B_a  %>%
-    mutate(model_label = factor(model_label, levels = models_B_order_a ))
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_a ))
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -1289,17 +1296,17 @@ models_C_order <- c(
 coef_df_C <- purrr::imap_dfr(models_C, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
 coef_df_C <- coef_df_C %>%
-mutate(model_label = factor(model_labels_C[model], levels = models_C_order)) %>% data.table()
+dplyr::mutate(model_label = factor(model_labels_C[model], levels = models_C_order)) %>% data.table()
 
 # distinquish original models from our alternative ones
 coef_df_C <- coef_df_C %>%
-mutate(
+dplyr::mutate(
     model_group = ifelse(grepl("^c_", model), "Authors' original", "Our new"),
     model_label = model_labels_C[model]
 )
 
 coef_df_C <- coef_df_C %>%
-mutate(model_label = factor(model_label, levels = models_C_order))
+dplyr::mutate(model_label = factor(model_label, levels = models_C_order))
 
 red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
 blue_ =  "#46B8DAFF"
@@ -1328,21 +1335,18 @@ theme(
     )#; ggsave('Output/Fig_r3_completeness.jpg', width = 25, height = 5, units = 'cm')
 
 #' **Figure r3</a> | Differences in estimated sampling completeness between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A, horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). n = `r nrow(hC)` polygons (neighbourhoods).
+#' 
 #' <br>
 #' 
 #' ***
-#' 
 #' <br>
 #' 
 #' # 2. Replicating temporal trends  
-#' TODO: Peto, let's decide whether the current i-iii order below is ok. I somehow feel that it might be better to first discuss Fig. 4; highlight the issue with the data and then use the correct data.
-#' 
-#' PETO: Why not, we can try it this way
 #' 
 #' The results on temporal trends contain three key outputs:  
-#' i. Claim about 35.6% in relative disparity between HOLC grade A and D from 2000 to 2020.  
-#' ii. Visualisation of temporal trends in Fig. 4.  
-#' iii. General additive model on temporal trends in Table S4.  
+#' (i) Claim about 35.6% in relative disparity between HOLC grade A and D from 2000 to 2020.   
+#' (ii) Visualisation of temporal trends in Fig. 4.   
+#' (iii) General additive model on temporal trends in Table S4.  
 #' 
 #'
 #' ## i. Claim about 35.6% change in disparity 
@@ -1486,7 +1490,7 @@ temporal_trend = read.table("original_paper/Data/Biodiv_Greeness_Social/R1_biodi
                             header = TRUE,sep = ",")
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(temporal_trend) <- c('Year','holc_grade', 'Sum')
-temporal_trend = temporal_trend %>% filter(holc_grade != 'E')
+temporal_trend = temporal_trend %>% dplyr::filter(holc_grade != 'E')
 
 temporal_all_data = ddply(temporal_trend, 'holc_grade', function(x){
   ddply(x, 'Year', function(z){
@@ -1500,16 +1504,16 @@ temporal_all_data = ddply(temporal_trend, 'holc_grade', function(x){
     
   })
 })
-
+#TODO: testing whether plyr will produce the desired wrong results; if not we need to somehow remove tideverse or something for this to run
 tmpppp = temporal_all_data %>% group_by(holc_grade, Year) # %>% mutate(cumsum = cumsum(n_obs))
 
-trend_A = tmpppp %>% filter(holc_grade == 'A') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_A = tmpppp %>% filter(holc_grade == 'A') %>% plyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% plyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_B  = tmpppp %>% filter(holc_grade == 'B') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_B  = tmpppp %>% filter(holc_grade == 'B') %>% plyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% plyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_C  = tmpppp %>% filter(holc_grade == 'C') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_C  = tmpppp %>% filter(holc_grade == 'C') %>% plyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% plyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_D  = tmpppp %>% filter(holc_grade == 'D') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_D  = tmpppp %>% filter(holc_grade == 'D') %>% plyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% plyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
 mul = data.table(rbind(trend_A,trend_B,trend_C,trend_D))
 
@@ -1518,13 +1522,13 @@ mul = data.table(rbind(trend_A,trend_B,trend_C,trend_D))
 detach("package:plyr", unload = TRUE, character.only = TRUE) #unload plyr package to recieve a correct picture
 
 # authors' code (L412-20); note that the following code that multiplied the datase is unnecessary as tmppp already contains number of observations and hence only area needed to be joined
-trend_A = tmpppp %>% filter(holc_grade == 'A') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_A = tmpppp %>% filter(holc_grade == 'A') %>% dplyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% dplyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_B  = tmpppp %>% filter(holc_grade == 'B') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_B  = tmpppp %>% filter(holc_grade == 'B') %>% dplyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% dplyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_C  = tmpppp %>% filter(holc_grade == 'C') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_C  = tmpppp %>% filter(holc_grade == 'C') %>% dplyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% dplyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
-trend_D  = tmpppp %>% filter(holc_grade == 'D') %>% mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% mutate(sampling_density = cumsum_n_obs /area_sum )
+trend_D  = tmpppp %>% filter(holc_grade == 'D') %>% dplyr::mutate(cumsum_n_obs = cumsum(n_obs)) %>% left_join(holc_area) %>% dplyr::mutate(sampling_density = cumsum_n_obs /area_sum )
 
 ok = data.table(rbind(trend_A,trend_B,trend_C,trend_D))
 
@@ -1591,7 +1595,7 @@ theme(legend.position = 'none', plot.subtitle = element_text(size = 10, colour =
 temporal_trend = read.table('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv', header= T,sep=',')
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(temporal_trend) <- c('Year','holc_grade', 'Sum')
-temporal_trend = temporal_trend %>% filter(holc_grade != 'E')
+temporal_trend = temporal_trend %>% dplyr::filter(holc_grade != 'E')
 # MaPe hashtagged out as it needed other data, not relevant for the current case: sum(temporal_2000_2020$Sum,na.rm=T) / sum(temporal_trend$Sum,na.rm=T) # 77.8 % of biodiversity data collected in last 20 years ! 
 
 temporal_all_data = plyr::ddply(temporal_trend, 'holc_grade', function(x){
@@ -1820,8 +1824,161 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #' <br>
 #' 
 #' ### Robustness reproducibility
-#' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon and year (i.e. city-specific HOLC-grades and sampling polygon ids). Note that some polygons have missing polygon ids and hence merging with polygon area was not possible (n = `r comma(nrow(d))` polygon-year recors).  
+#' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon and year (i.e. city-specific HOLC-grades and sampling polygon ids). Note that some polygons have missing polygon ids and hence merging with polygon area was not possible (n = `r comma(nrow(d))` polygon-year recors).
 #' 
+#' The following figures highlight the raw data distribution.
+#' 
+#+ F_Z0a, fig.width = 20/2.5, fig.height = 25/2.5
+gtable_filter_remove <- function (x, name, trim = TRUE){
+  matches <- !(x$layout$name %in% name)
+  x$layout <- x$layout[matches, , drop = FALSE]
+  x$grobs <- x$grobs[matches]
+  if (trim) 
+    x <- gtable_trim(x)
+  x
+}
+# helper to place log10 minor breaks at 2..9 * 10^k
+minor_breaks_log10 <- function(lims) {
+  lo <- floor(log10(lims[1])); hi <- ceiling(log10(lims[2]))
+  as.numeric(outer(1:9, 10^(lo:hi), `*`))
+}
+
+# helper: minor breaks only for >0
+minor_breaks_log10_if0 <- function(lims){
+  hi <- lims[2]; lo <- max(1, lims[1])
+  if (hi <= 1) return(NULL)
+  as.numeric(outer(1:9, 10^(floor(log10(lo)):ceiling(log10(hi))), `*`))
+}
+
+# limit data (that dataset contained 1.3% of observations with sampling densities >7000 observations/km2/year) based on data inspection where areas of 10-30 km2 had max 70.8 observations/year never reach 7000 and nor do areas >30km2); note that instead of excluding data points >7000 density, flooring the densities to 7000 generated similar outputs)
+
+dr = d[sampling_density<7000]
+dr = dr[year %between% c(2000, 2020)]
+
+# shorten the city-state names
+dr[, state_city := paste(state, substr(city, 1, 7), sep =', ')]
+dr[nchar(city_state)>11, state_city:=paste0(state_city, '.') ]
+dr = dr[ order(state,city)]
+
+x = unique(dr$state_city)
+
+ncol = 10
+
+# first batch
+di = dr[state_city%in%x[1:94]] 
+tr_des = 
+ ggplot(di, aes(x = year, y = sampling_density, col = holc_grade)) + 
+    geom_jitter(size = 0.5, alpha = 0.2) + 
+    stat_smooth(se = FALSE) + 
+    facet_wrap(~state_city, ncol = ncol) + 
+    coord_cartesian(xlim=c(2000, 2020), ylim=c(1, 10000))+
+    scale_y_log10(
+        name   = "Sampling density [km²]",
+        breaks = c(1, 100, 10000),
+        minor_breaks = minor_breaks_log10,      # many minor lines
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(breaks = c(2000, 2010, 2020), name = 'Year')  +
+    scale_color_manual(values = holc_pal, name = 'HOLC grade') +
+    labs(subtitle = 'Part a') + 
+    theme_minimal(base_size = 8) +
+    theme(
+        plot.subtitle = element_text(size = 10, colour = "grey40"),
+        legend.key.height = unit(0.25, "cm"),  # reduce vertical spacing between items 
+        strip.background = element_blank()
+    )  
+
+# remove axis labels for every second panel
+g_tr_des <- ggplotGrob(tr_des)  # view with #g_tr_des$layout$name 
+
+g_tr_des <- gtable_filter_remove(g_tr_des, name = c("axis-b-2-10", "axis-b-4-10", "axis-b-6-9", "axis-b-8-9" , "axis-b-10-9"), trim = FALSE) 
+
+grid.draw(g_tr_des)#; ggsave('Output/rev_trend-raw_a.png', g_tr_des, units = 'cm', width = 20, height = 25)
+
+#+ F_Z0b, fig.width = 20/2.5, fig.height = 25/2.5
+# second batch
+dib = dr[state_city%in%x[95:188]]  
+tr_des_b = 
+  ggplot(dib, aes(x = year, y = sampling_density, col = holc_grade)) + 
+    geom_jitter(size = 0.5, alpha = 0.2) + 
+    stat_smooth(se = FALSE) + 
+    facet_wrap(~state_city, ncol = 10) + 
+    coord_cartesian(xlim=c(2000, 2020), ylim=c(1, 10000))+
+    scale_y_log10(
+        name   = "Sampling density [km²]",
+        breaks = c(1, 100, 10000),
+        minor_breaks = minor_breaks_log10,      # many minor lines
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(breaks = c(2000, 2010, 2020), name = 'Year')  +
+    scale_color_manual(values = holc_pal, name = 'HOLC grade') +
+    labs(subtitle = 'Part b') + 
+    theme_minimal(base_size = 8) +
+    theme(
+        plot.subtitle = element_text(size = 10, colour = "grey40"),
+        legend.key.height = unit(0.25, "cm"),  # reduce vertical spacing between items 
+        strip.background = element_blank()
+    )  
+
+# remove axis labels for every second panel
+g_tr_des_b <- ggplotGrob(tr_des_b)  # view with #g_tr_des$layout$name 
+
+g_tr_des_b <- gtable_filter_remove(g_tr_des_b, name = c("axis-b-2-10", "axis-b-4-10", "axis-b-6-9", "axis-b-8-9" , "axis-b-10-9"), trim = FALSE) 
+
+grid.draw(g_tr_des_b)#;ggsave('Output/rev_trend-raw_b.png', g_tr_des_b, units = 'cm', width = 20, height = 25)
+
+#' <a name="F_Z0ab">
+#' **Figure Z0ab</a> | Change in HOLC grade sampling density per km² over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Line color indicates HOLC grade. Note that `r nrow(d[year %between% c(2000, 2020) & sampling_density>7000])/nrow(d[year %between% c(2000, 2020)])`% of 2000-2020 observations (`r nrow(d[year %between% c(2000, 2020) & sampling_density>7000])` out of r`nrow(d[year %between% c(2000, 2020)])`) has sampling densities >7000 observations/km²/year per year; based on data inspection areas of 10-30 km² had max up to 100 observations/km²/year and never reach 7000 and nor do areas >30km². We thus exclude observations with sampling density >7000. Note that instead of excluding data points >7000 density, flooring the densities to 7000 generated similar outputs; same applies for the next figure. TODO:try all the anala without 7000; and check whether some areas consistently have more than 7000/year 
+#' <br>  
+#'
+#+ F_Z0c, fig.width = 7/2.5, fig.height = 13/2.5
+# summary per D
+drD = dr[holc_grade=='D']
+pD = 
+ ggplot(drD, aes(x = year, y = sampling_density)) + 
+    stat_smooth(aes(group = state_city), se = FALSE, col = holc_pal[4], alpha = 0.2) + 
+    stat_smooth(se = TRUE, col = 'black') + 
+    coord_cartesian(xlim=c(2000, 2020), ylim=c(1, 10000))+
+    scale_y_log10(
+        name   = "Sampling density [km²]",
+        breaks = c(1, 100, 10000),
+        minor_breaks = minor_breaks_log10,      # many minor lines
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(breaks = c(2000, 2010, 2020), name = 'Year')  +
+    labs(subtitle = 'HOLC grade D') + 
+    theme_light() +
+    theme(
+        plot.subtitle = element_text(size = 10, colour = "grey40")
+    )  #; ggsave('Output/rev_trend-raw_D.png', pD, units = 'cm', width = 7, height = 7)
+
+# summary per A
+drA = dr[holc_grade=='A']
+pA = 
+ ggplot(drA, aes(x = year, y = sampling_density)) + 
+    stat_smooth(aes(group = state_city), se = FALSE, col = holc_pal[1], alpha = 0.2) + 
+    stat_smooth(se = TRUE, col = 'black') + 
+    coord_cartesian(xlim=c(2000, 2020), ylim=c(1, 10000))+
+    scale_y_log10(
+        name   = "Sampling density [km²]",
+        breaks = c(1, 100, 10000),
+        minor_breaks = minor_breaks_log10,      # many minor lines
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(breaks = c(2000, 2010, 2020), name = 'Year')  +
+    labs(subtitle = 'HOLC grade A') + 
+    theme_light() +
+    theme(
+        plot.subtitle = element_text(size = 10, colour = "grey40"),
+        axis.text.x = element_blank()
+    )  #ggsave('Output/rev_trend-raw_A.png', pD, units = 'cm', width = 7, height = 7)
+
+pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7000as7000.png', units = 'cm', width = 7, height = 13)
+
+#' <a name="F_Z0c">
+#' **Figure Z0c</a> | Summarized change in HOLC grade A and D sampling density over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Simple lines represent fits per city, black line with shaded area fits to all data (note that such lines are just visual exploration of data as they are not controlled for pseudoreplication).
+#' <br>  
+#'
 #' We then specified mixed-effect models with sampling density (km²) as a response and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors:
 #'   
 #' (1) Random intercept of state, city within state and unique sampling polygon id.  
@@ -1925,7 +2082,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lm_df <- ext_fixef_D_lm(sum_m) |>
-    mutate(
+    dplyr::mutate(
       type2 = fcase(type == "intercept", "Intercept",
                     type == "slope_per_SDyear", "Slope",
                     default = as.character(type)),
@@ -1939,7 +2096,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   coef_df_0020_D <- purrr::imap_dfr(models_T0020_D, ~ ext_fixef_D(.x) |> dplyr::mutate(model=.y))
 
   coef_df_0020_D <- coef_df_0020_D %>%
-    mutate(model_label = factor(models_T0020_labels_D[model], levels = models_T0020_order_D)) %>% data.table()
+    dplyr::mutate(model_label = factor(models_T0020_labels_D[model], levels = models_T0020_order_D)) %>% data.table()
 
   coef_df_0020_D[, type2 := fcase(
     type == "intercept", "Intercept",
@@ -2083,7 +2240,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lm_df_10 <- ext_fixef_D_lm(sum_m_10) |>
-    mutate(
+    dplyr::mutate(
       type2 = fcase(type == "intercept", "Intercept",
                     type == "slope_per_SDyear", "Slope",
                     default = as.character(type)),
@@ -2097,7 +2254,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   coef_df_1020_D <- purrr::imap_dfr(models_T1020_D, ~ ext_fixef_D(.x) |> dplyr::mutate(model=.y))
 
   coef_df_1020_D <- coef_df_1020_D %>%
-    mutate(model_label = factor(models_T1020_labels_D[model], levels = models_T1020_order_D)) %>% data.table()
+    dplyr::mutate(model_label = factor(models_T1020_labels_D[model], levels = models_T1020_order_D)) %>% data.table()
 
   coef_df_1020_D[, type2 := fcase(
     type == "intercept", "Intercept",
@@ -2211,6 +2368,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
 #'  
 #' #### B. Mean and slope values
 #+ F_Z2, fig.width = 25/2.5, fig.height = 15/2.5
+  #TODO:add poisson models as well
   # MODELS 2000-2020
   
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
@@ -2309,7 +2467,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lmi_df <- ext_fixef_lm(sum_mi) |>
-    mutate(
+    dplyr::mutate(
       type2 = fcase(type == "intercept", "Intercept",
                     type == "slope_per_SDyear", "Slope",
                     default = as.character(type))
@@ -2322,7 +2480,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   coef_df_0020 <- purrr::imap_dfr(models_T0020, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
   coef_df_0020 <- coef_df_0020 %>%
-    mutate(model_label = factor(models_T0020_labels[model], levels = models_T0020_order)) %>% data.table()
+    dplyr::mutate(model_label = factor(models_T0020_labels[model], levels = models_T0020_order)) %>% data.table()
 
   coef_df_0020[, type2 := fcase(
     type == "intercept",        "Intercept",
@@ -2474,7 +2632,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
   lmi_df_10 <- ext_fixef_lm(sum_m_i) |>
-    mutate(
+    dplyr::mutate(
       type2 = fcase(type == "intercept", "Intercept",
                     type == "slope_per_SDyear", "Slope",
                     default = as.character(type))
@@ -2487,7 +2645,7 @@ ggplot(newD_bt, aes(x = Year, y = fit_bt, colour = holc_grade, fill = holc_grade
   coef_df_1020 <- purrr::imap_dfr(models_T1020, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
   coef_df_1020 <- coef_df_1020 %>%
-    mutate(model_label = factor(models_T1020_labels[model], levels = models_T1020_order)) %>% data.table()
+    dplyr::mutate(model_label = factor(models_T1020_labels[model], levels = models_T1020_order)) %>% data.table()
 
   coef_df_1020[, type2 := fcase(
     type == "intercept",        "Intercept",
