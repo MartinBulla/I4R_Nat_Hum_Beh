@@ -3,6 +3,7 @@
 #' author: <font size="3">Martin Bulla & Peter Mikula</font><br><br><font size="2">created by Martin Bulla</font><br>
 #' date: <font size="1.5">`r Sys.time()`</font>
 #' bibliography: ../Resources/_bib.bib
+#' link-citations: true
 #' output:
 #'     html_document:
 #'         toc: true
@@ -24,9 +25,8 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
 #' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'. 
 #' 
 #' # TODO:
-#' 1. Decide whether we shall unify our terminology around:
-#'   -  HOLC - sometimes we call it categories, sometimes grades
-#'   - polygons/neighbourhoods temporal trends per city & model ass
+#' 1. add model ass
+#' 2. decide what anal to keep
 #' 
 #' Scripts generating the outputs of this html are available upon clicking the `code` button at top right above each display item!
 #' 
@@ -189,41 +189,88 @@ plot_effects_holc <- function(
      g
 }
 
-# function to extract fixed effects from lmer
-ext_fixef <- function(m) {
-  mf  <- model.frame(m)
-  sdy <- as.numeric(attr(mf[["scale(year)"]], "scaled:scale"))
-  
-  fe <- fixef(m); V <- as.matrix(vcov(m)); se <- sqrt(diag(V)); z <- qnorm(0.975)
-  nm <- names(fe); pick <- function(p) grep(p, nm, value = TRUE)
+# function to extract HOLC grade and if availalbe year slopes per HOLC fixed effects (works with lmer/glmer (lme4), glmmTMB (cond by default), lm/glm
+ext_fixef <- function(m, component = "cond") {
+  ## get fixed effects & vcov (SE) by class ##
+  get_fe_se <- function(m, component) {
+    if (inherits(m, "glmmTMB")) {
+      fe <- fixef(m)[[component]]                  # named numeric
+      Vfull <- stats::vcov(m)                      # may be a list (cond/zi/disp) or matrix
+      V <- if (is.list(Vfull)) Vfull[[component]] else Vfull
+      se <- sqrt(diag(as.matrix(V)))
+      list(fe = fe, se = se)
+    } else if (inherits(m, c("lmerMod","glmerMod"))) {
+      fe <- lme4::fixef(m); V <- stats::vcov(m); list(fe = fe, se = sqrt(diag(as.matrix(V))))
+    } else if (inherits(m, c("lm","glm"))) {
+      fe <- stats::coef(m);   V <- stats::vcov(m); list(fe = fe, se = sqrt(diag(as.matrix(V))))
+    } else {
+      stop("Unsupported model class: ", paste(class(m), collapse="/"))
+    }
+  }
 
-  ints_n <- pick("^holc_grade[^:]+$")
-  slps_n <- pick("^holc_grade[^:]+:scale\\(year\\)$")
+  FE <- get_fe_se(m, component)
+  fe <- FE$fe; se <- FE$se
+  nm <- names(fe); z <- stats::qnorm(0.975)
+  pick <- function(p) grep(p, nm, value = TRUE)
 
-  ints <- tibble(
-    type = "intercept",
-    holc_grade = sub("^holc_grade","", ints_n),
-    estimate = fe[ints_n],
-    std.error = se[ints_n],
-    conf.low = estimate - z*std.error,
-    conf.high = estimate + z*std.error
+  ## SD of scale(year) if available (used only if slope terms exist) ##
+  sdy <- tryCatch({
+    as.numeric(attr(stats::model.frame(m)[["scale(year)"]], "scaled:scale"))
+  }, error = function(e) NA_real_)  
+
+  ## names to extract ##
+  ints_n <- pick("^holc_grade[^:]+$")                    # e.g. holc_gradeB/C/D
+  slps_n <- pick("^holc_grade[^:]+:scale\\(year\\)$")    # interaction (if present)
+
+  ## intercept rows ##
+  ints <- if (length(ints_n)) {
+    tibble::tibble(
+      type        = "intercept",
+      holc_grade  = sub("^holc_grade", "", ints_n),
+      estimate    = unname(fe[ints_n]),
+      std.error   = unname(se[match(ints_n, nm)]),
+      conf.low    = estimate - z*std.error,
+      conf.high   = estimate + z*std.error,
+      estimate_per_year  = NA_real_,
+      conf.low_per_year  = NA_real_,
+      conf.high_per_year = NA_real_
+    )
+  } else tibble::tibble(
+    type=character(), holc_grade=character(), estimate=double(), std.error=double(),
+    conf.low=double(), conf.high=double(),
+    estimate_per_year=double(), conf.low_per_year=double(), conf.high_per_year=double()
   )
 
-  slps <- tibble(
-    type = "slope_per_SDyear",
-    holc_grade = sub(":.*","", sub("^holc_grade","", slps_n)),
-    estimate = fe[slps_n],
-    std.error = se[slps_n],
-    conf.low = estimate - z*std.error,
-    conf.high = estimate + z*std.error
-  ) |>
-    dplyr::mutate( # convert to per-year on the same log scale
-      estimate_per_year = estimate / sdy,
-      conf.low_per_year = conf.low / sdy,
-      conf.high_per_year= conf.high / sdy
+  ## slope rows (if the interaction exists) ##
+  slps <- if (length(slps_n)) {
+    base <- tibble::tibble(
+      type        = "slope_per_SDyear",
+      holc_grade  = sub(":.*","", sub("^holc_grade","", slps_n)),
+      estimate    = unname(fe[slps_n]),
+      std.error   = unname(se[match(slps_n, nm)]),
+      conf.low    = estimate - z*std.error,
+      conf.high   = estimate + z*std.error
     )
+    if (is.finite(sdy) && sdy > 0) {
+      dplyr::mutate(base,
+        estimate_per_year  = estimate / sdy,
+        conf.low_per_year  = conf.low / sdy,
+        conf.high_per_year = conf.high / sdy
+      )
+    } else {
+      dplyr::mutate(base,
+        estimate_per_year  = NA_real_,
+        conf.low_per_year  = NA_real_,
+        conf.high_per_year = NA_real_
+      )
+    }
+  } else tibble::tibble(
+    type=character(), holc_grade=character(), estimate=double(), std.error=double(),
+    conf.low=double(), conf.high=double(),
+    estimate_per_year=double(), conf.low_per_year=double(), conf.high_per_year=double()
+  )
 
-  bind_rows(ints, slps)
+  dplyr::bind_rows(ints, slps)
 }
 
 # function to extract fixed effects from lm
@@ -500,7 +547,7 @@ tt10 = tt00[year >= 2010]
 # estimate 2000 - 2020 A/D disparity
 dispar = round((((ttb[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density] / ttb[year%in%c(2020) &  holc_grade%in%c('D'), sampling_density])/(ttb[year%in%c(2000) &  holc_grade%in%c('A'), sampling_density]/ ttb[year%in%c(2000) &  holc_grade%in%c('D'), sampling_density]))-1)*100, 1)
 
-# 4. load temporal data for year, category, neighbourhood (polygon) generated by us
+# 4. load temporal data for year, HOLC grade, neighbourhood (polygon) generated by us
 
 if(recreate_data==TRUE){
   source('R/rev_Dat_temporal_trend.R')
@@ -548,9 +595,9 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' (B) Sampling density (km²).    
 #' (C) Completeness of sampling.  
 #'    
-#' Accordingly, three sets the authors fitted three sets of models. However, the Methods are ambiguous about the number of models fitted, as it is unclear whether the various predictors were added one by one or at once, as well as about the variables used. Moreover, the described model structures do not seem to fit with the one presented in the script `05_paper_1_analyses_R4.Rmd`. Specifically, the authors note “The simplest null model (intercept only) was fit and fixed effects for HOLC (primary variable of interest) were added. Next, the following terms were added: metropolitan statistical area (MSA) as a random intercept, HOLC grade as a random slope, and fixed effects for NDVI, percent open space and population density as random slopes within HOLC-defined city for mean temperature and precipitation (climate) interaction.” (p. 1875)[@ellis-soto_historical_2023]. This description makes (i) unclear what variables were fitted as fixed or random slopes and whehter the terms were added sequentially or into a single complex model. Importantly, the authors do not describe response specific models; hence, we assumed that they fitted the same model structure to all three response variables.    
+#' Accordingly, the authors fitted three sets of models. However, the authors description in the Methods is ambiguous about (i) used variables, and (ii) the number of models fitted (i.e. whether various predictors were added one by one or at once). Moreover, the described model structures do not seem to always fit with those presented in the script `05_paper_1_analyses_R4.Rmd`. Specifically, the authors note “The simplest null model (intercept only) was fit and fixed effects for HOLC (primary variable of interest) were added. Next, the following terms were added: metropolitan statistical area (MSA) as a random intercept, HOLC grade as a random slope, and fixed effects for Normalized Difference Vegetation Index (NDVI), percent open space and population density as random slopes within HOLC-defined city for mean temperature and precipitation (climate) interaction.” [@ellis-soto_historical_2023] (p. 1875). This description does not clarify what variables were fitted as fixed or random slopes and whehter the terms were added sequentially or into a single complex model. Importantly, the authors do not describe whether they fitted different set of models for each response. Here, we thus assumed that they fitted the same model structure to all three response variables.    
 #' <br>
-#' **First**, we show how we interpret the above model specification showing fixed effects and random effects of the model with random effects being enclosed in paranthesis with the term in front of `|` representing random slope, the term after `|` representing random intercepts, explicitly nested terms connected by `/` and interaction by `:`:  
+#' **First**, in the below list we show our interpretion of the above model specification with fixed effects without paranthesis and random effects enclosed in paranthesis (the term in front of `|` represents random slope, the term after `|` representing random intercepts, with explicitly nested terms connected by `/` and interactions by `:`:  
 #' 
 #' (1) ~ 1 (intercept only model)  
 #' (2) ~ HOLC grade  
@@ -559,26 +606,24 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' (5) ~ HOLC grade + other predictors + (HOLC grade | metropolitan area)  
 #' (6) ~ HOLC grade + other predictors + (HOLC grade | metropolitan area) + (HOLC grade | metropolitan area) + (temperature : precipitation | city )  
 #'  
-#' Where (5) and (6) possibly represent multiple models where each predictor (NDVI, open space (%), population density (per km²), and perhaps mean temperature and precipitation) was added one by one.  
+#' Possibly, models (5) and (6) possibly represent multiple models where each predictor (NDVI, open space (%), population density (per km²), and perhaps mean temperature and precipitation) was added separately or sequentially one by one.  
 #'  
-#'  Note that the authors also do not describe any check of model assumptions and we found none in theirs scripts.  
-#' <br>
-#' **Second**, the script revealed that, e.g. for neighbourhoods sampled (binary respons), three models seemed to have been fitted. Model 3 and 4 described above and a complex model, not described in the Methods:  
+#' Moreover, the script revealed that, e.g. for neighbourhoods sampled (binary respons), three models seemed to have been fitted. Model 3 and 4 described above and a complex model, not described in the Methods:  
 #' 
 #' 7. ~ HOLC grade + NDVI + open space + population density + (1 + HOLC grade + msa_gini | metropolitan area) + (1 + temperature : precipitation | city)  
 #'  
-#' This model resambles a model described in the Method, i.e. model (6) above, but with essential nuance: two random slopes are fitted within metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents Gini index of household income inequality at the level of metropolitan area (having same n). Given that  has the same number of levels as metropolitan are, `msa_gini` cannot be fitted as random slope within metropolitan area, i.e. the model is misspecified.  
-#'  
-#' The model sets for the other two responses suffer from similar issues. For example, `msa_medhhincE` random slope within metropolitan area suffers from the same issues as `msa_gini`, i.e. is not defined in the main text and thus its meaning is unclear, and has similar (less) number of unique values as the metropolitan area within which it was fitted, leading to model misspecification. Similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations).  
+#' This model resambles a model described in the Method, i.e. model (6) above, but with essential nuance: two random slopes are fitted within metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents Gini index of household income inequality at the level of metropolitan area (having same n as metropolitan area). Given that `msa_gini` has the same number of levels as metropolitan are, `msa_gini` cannot be fitted as random slope within metropolitan area, i.e. the model is misspecified. The model sets for the other two responses suffer from similar issues (e.g. `msa_medhhincE` random slope is not defined in the main text and has lower number of unique values thne the metropolitan area within which it was fitted; similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations)).  
 #'  
 #' The script contains 10 - 12 models for sampling density and 10 models for sampling completeness. The authors nowhere justify the need for specifying their complex random structures and comparing so many models. TODO: Peto please add bibtext citation for the 5-8 to the Resources/_bib.bib and here add those as you see for Akaike2025 below.  
 #' <br>
-#' **Third**, the authors compared  models within each set and selected the best one using Akaike information criterion (AIC)[@Akaike2025], a method that is the most robust only if the compared models have the same random effect structure TODO:Peto add citation 10 here). However, the authors compared models differing in both fixed and random effects, a practice advided against TODO:Peto again add citations, and making such comparison invalid. 
+#' **Second**, the authors compared  models within each set (i.e. for each response) and selected the best one using Akaike information criterion (AIC) [@Akaike2025], a method that is the most robust only if the compared models have the same random effect structure TODO:Peto add citation 10 here). However, the authors compared models differing in both fixed and random effects, a practice advided against TODO:Peto again add citations, and making such comparison invalid. 
 #'  
-#' We believe that the authors should have fitted one complex model that is controlled for all discussed variables as well as non-indepence of data points. Their data with n around 9,000 neighbourhoods and clear data structure allows that. If in doubt, fitting a simpler model and comparing its estimates witht the complex one would suffice.
+#' We believe that the authors should have fitted one complex model that is controlled for all discussed variables as well as non-indepence of data points. Their data with n around 9,000 neighbourhoods and clear data structure allows that. If in doubt, fitting a simpler model and comparing its estimates witht the complex one would suffice. Such practice reduces the risk of reporting spurious effects TODO:Peto cit.
+#' 
+#' **Finally**, the authors do not describe in their Methods, nor provide in their scripts, any checks of model assumptions. This is problematic as some of their models fit poorly the data, do not sufficintly control for non-independence of data points (spatial and/or temporal), or suffer from heteroscedasticity TODO:Peto cit, which influences statistical clarity (PETO cit).
 #'  
-#' Here, we respecified the model set for each response and compared the model estimates. We include plausible models from the authors' set and included further models either with HOLC grade as a single fixed effect (simple models) or including also all other continues control variables (discussed by the authors) as fixed effects (NDVI, open space (%), population density (per km²), mean temperature and mean precipitation; full model). For our simple and full modle we varied the random structure (i) to mirror the authors' logic, but using only discussed and meaningful variables (e.g. excluding random slopes with same number of levels as the corresponding random intercept), and (ii) to account for non-independence of data points. The sets included the following models where those with random intercept of `metropolitan area` indicate the authors' ones, and those with random intercept of `city` ours. Note that we use city (unique across the dataset), instead of the metropolitan area (as city has more levels).  
-#'  
+#' Here, we respecified the model set for each response, checked the model assumptions (and if needed respecified the model/s) and compared the model estimates. We include plausible models from the authors' set and included further two models either with HOLC grade as a single fixed effect (simple models) or including also all other continues control variables (discussed by the authors) as fixed effects (NDVI, open space (%), population density (per km²), mean temperature and mean precipitation; full model). For our simple and full modle we varied the random structure (i) to mirror the authors' logic, but using only discussed and meaningful variables (e.g. excluding random slopes with the same number of levels as the corresponding random intercept), and to show whether estimates and their clarity change if we (ii) account for non-independence of data points, and (iii) if needed model the heteroscedascity. 
+#' 
 #' (1) ~ HOLC grade + (1 | metropolitan area)     
 #' (2) ~ HOLC grade + (1 | city)  
 #' (3) ~ HOLC grade + (1 + HOLC grade | metropolitan area)  
@@ -589,9 +634,14 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' (8) ~ HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)  
 #' (9) ~ HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1|state) + (HOLC grade | city)  
 #' 
-#' Note that for the neighbourhoods samples authors did not use the model (6) and hence we have not specified it. Also, we have attempted a model with random intercepts of state, metropolitan area and city, but those models converged poorly (similar levels for metropolitan are adn city). Our go for model is the number 9 because it controls for the variables intended by the authors and best addresses the non-independence of data points.  
+#' The models where models with random intercept of `metropolitan area` indicate the authors' specified models, and those with random intercept of `city` our models. Note that we use city (unique across the dataset), instead of the metropolitan area (as city has more levels). Moreover, for the neighborhood sampled (yes/no) authors did not use the model (6) and hence we have not specified it. Moreover, for responses neighborhood sampled (yes/no) and completeness of samploing, we improved the model fit by controlling for the neighberhood area (natural-log(km²)), a biologically and statistically meaningful control because it directly affect the probability of detections.
 #' 
-#' In the coming sections A, B, C we compare the HOLC grade estimates from the various models for each response variable.
+#' We have also attempted a model with random intercepts of state, metropolitan area and city, but those models converged poorly (similar levels for metropolitan are and city). Our go for model is the number 9 because it controls for the variables intended by the authors and best addresses the non-independence of data points.  
+#' 
+#' TODO: PETO use model ass to check whether correct
+#' TODO: we shall check whether we have not specified other models - I believe with different responses or offsets.
+#' 
+#' In the coming sections A, B, C for each response variable we compare the HOLC grade estimates from the various models.
 #' <br>
 #'  
 #' ## A. Sampled or not
@@ -616,7 +666,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         family = binomial(link = "logit"),
         control = glmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))
-        )
+        )       
 
     m1= lme4::glmer(sample_binary ~ holc_grade + 
         (holc_grade | city_state), 
@@ -625,15 +675,8 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         control = glmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))
         )
-
-    m2= lme4::glmer(sample_binary ~ holc_grade + 
-        (holc_grade_num | city_state), 
-        data = h, 
-        family = binomial(link = "logit"),
-        control = glmerControl(optimizer = "bobyqa",
-                            optCtrl = list(maxfun = 2e5))
-        )
-    m1p= lme4::glmer(sample_binary ~ holc_grade + scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+    m1b= lme4::glmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
         (holc_grade | city_state), 
         data = h, 
         family = binomial(link = "logit"),
@@ -641,20 +684,43 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
                             optCtrl = list(maxfun = 2e5))
         )
 
-    m2p= lme4::glmer(sample_binary ~ holc_grade + scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+    m2= lme4::glmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        (holc_grade_num | city_state), 
+        data = h, 
+        family = binomial(link = "logit"),
+        control = glmerControl(optimizer = "bobyqa",
+                            optCtrl = list(maxfun = 2e5))
+        )
+
+    m1p= lme4::glmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+        (holc_grade | city_state), 
+        data = h, 
+        family = binomial(link = "logit"),
+        control = glmerControl(optimizer = "bobyqa",
+                            optCtrl = list(maxfun = 2e5))
+        )
+
+    m2p= lme4::glmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
         (holc_grade_num | city_state), 
         data = h, 
         family = binomial(link = "logit"),
         control = glmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5)))  
-    
+
     m3p= lme4::glmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
         scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
         (1|state) + (holc_grade_num | city_state), 
         data = h, 
         family = binomial(link = "logit"),
         control = glmerControl(optimizer = "bobyqa",
-                            optCtrl = list(maxfun = 2e5))) 
+                            optCtrl = list(maxfun = 2e5)))   
+
   # PLOT for logit
     # add models to a list
     models_A<- list(
@@ -662,6 +728,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     samp_d_binary_holc_rirs = samp_d_binary_holc_rirs,
     m0       = m0,
     m1       = m1,
+    m1b       = m1b,
     m2       = m2,
     m1p      = m1p,
     m2p      = m2p,
@@ -674,10 +741,11 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     samp_d_binary_holc_rirs    = "HOLC grade + (1 + HOLC grade | metropoly)",
     m0       = "HOLC grade + (1 | city)",
     m1       = "HOLC grade + (HOLC grade | city)",
-    m2       = "HOLC grade + (HOLC grade numeric | city)",
-    m1p      = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-    m2p      = "HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)",
-    m3p   = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+    m1b       = "HOLC grade + area km² + (HOLC grade | city)",
+    m2       = "HOLC grade + area km² + (HOLC grade numeric | city)",
+    m1p      = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+    m2p      = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+    m3p   = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
     )
 
     # sort models
@@ -686,10 +754,11 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         "HOLC grade + (1 | city)",
         "HOLC grade + (1 + HOLC grade | metropoly)",
         "HOLC grade + (HOLC grade | city)",
-        "HOLC grade + (HOLC grade numeric | city)",
-        "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-        "HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)",
-        "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+        "HOLC grade + area km² + (HOLC grade | city)",
+        "HOLC grade + area km² + (HOLC grade numeric | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
     )
 
 
@@ -760,27 +829,41 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         control = lmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))) 
 
+    m1b_g= lmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        (holc_grade | city_state), 
+        data = h,
+        control = lmerControl(optimizer = "bobyqa",
+                            optCtrl = list(maxfun = 2e5))) 
+
     m2_g= lmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
         (holc_grade_num | city_state), 
         data = h, 
         control = lmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5)))   
 
-    m1p_g= lmer(sample_binary ~ holc_grade + scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+    m1p_g= lmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
         (holc_grade | city_state), 
         data = h,
         control = lmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))
         )   
 
-    m2p_g= lmer(sample_binary ~ holc_grade + scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+    m2p_g= lmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +
+        scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
         (holc_grade_num | city_state), 
         data = h, 
         control = lmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))
         )
     
-    m3p_g= lmer(sample_binary ~ holc_grade + scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
+    m3p_g= lmer(sample_binary ~ holc_grade + 
+        log(area_holc_km2) +        
+        scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + scale(mean_temp_c)*scale(mean_precip_mm) + 
         (1|state) + (holc_grade_num | city_state), 
         data = h, 
         control = lmerControl(optimizer = "bobyqa",
@@ -794,6 +877,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         samp_m1_g = samp_m1_g,
         m0_g      = m0_g,
         m1_g      = m1_g,
+        m1b_g      = m1b_g,
         m2_g       = m2_g,
         m1p_g     = m1p_g,
         m2p_g      = m2p_g,
@@ -802,14 +886,15 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 
     # model labels
     model_labels_A_g <- c(
-        samp_m0_g      = "HOLC grade + (1 | metropoly)",
+        samp_m0_g    = "HOLC grade + (1 | metropoly)",
         samp_m1_g    = "HOLC grade + (1 + HOLC grade | metropoly)",
-        m0_g      = "HOLC grade + (1 | city)",
-        m1_g       = "HOLC grade + (HOLC grade | city)",
-        m2_g       = "HOLC grade + (HOLC grade numeric | city)",
-        m1p_g      = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-        m2p_g      = "HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)",
-        m3p_g   =         "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+        m0_g         = "HOLC grade + (1 | city)",
+        m1_g         = "HOLC grade + (HOLC grade | city)",
+        m1b_g        = "HOLC grade + area km² + (HOLC grade | city)",
+        m2_g         = "HOLC grade + area km² + (HOLC grade numeric | city)",
+        m1p_g        = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+        m2p_g        = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+        m3p_g        = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
         )
 
     # sort models
@@ -818,10 +903,11 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         "HOLC grade + (1 | city)",
         "HOLC grade + (1 + HOLC grade | metropoly)",
         "HOLC grade + (HOLC grade | city)",
-        "HOLC grade + (HOLC grade numeric | city)",
-        "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-        "HOLC grade + NDVI + protected area + population density + temperature * precipitation + (HOLC grade numeric | city)",
-        "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+        "HOLC grade + area km² + (HOLC grade | city)",
+        "HOLC grade + area km² + (HOLC grade numeric | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+        "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
     )
 
 
@@ -872,9 +958,18 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         )#; ggsave('Output/Fig_r1_Sampled01_v2.jpg', width = 25, height = 5, units = 'cm')
   
   # combine
-  (A1 / A2) + plot_layout(axis_titles = "collect"); #ggsave('Output/Fig_r1_Sampled01_bin&gaus.jpg', width = 25, height = 8, units = 'cm') 
+  (A1 / A2) + plot_layout(axis_titles = "collect")#; ggsave('Output/Fig_1_Sampled01_bin&gaus.jpg', width = 25, height = 8, units = 'cm') 
 
-#' **Figure r1</a> | Differences in estimated presence of sampling  between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A, horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). Top row contains estimates from a logit-models, bottom row from the Gaussian ones. n = `r nrow(h)` polygons (neighbourhoods).
+#' **Figure 1</a> | Differences in estimated presence of sampling  between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A, horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). Top row contains estimates from a logit-models, bottom row from the Gaussian ones. n = `r nrow(h)` polygons (neighbourhoods).
+#' 
+#' Across all model structures (from simplest to full controls), our estimates (blue) consistently reproduce the expected negative relationship between HOLC grades (B–D vs. A) and the probability of being sampled. Binomial and Gaussian results align closely (blue points nearly overlap between logit- and original-scale panels), confirming robustness to link-function choice and distributional assumptions.
+#'  
+#' Adding only a neighborhood-area control reduced the apparent A–D difference, indicating that part of the original HOLC effect reflected larger polygon sizes rather than true sampling bias. However, when we also included covariates (NDVI, protected area %, population density, climate), the A–D contrast strengthened again, suggesting that ecological context had masked some of the social pattern in simpler models. Both the area control and covariates stabilize estimates while preserving their direction and approximate magnitude.
+#' 
+#' In sum, the authors’ original results (red) appear less extreme (closer to zero), suggesting that their omission of control variables conflated spatial or ecological bias with HOLC category.
+
+# ALTERNATIVE WORDING for the above three paragraphs, e.g. for some summary: Estimates of sampling probability relative to HOLC grade A were consistently negative for grades B–D across all model specifications and error structures, confirming the stability of inference despite non-normal data (cf. Knief & Forstmeier 2021). Accounting for log(area) and other covariates slightly increased the A-D contrast and made it more stable, indicating robustness to model complexity. 
+#' 
 #' <br>
 #' 
 #' ## B. Sampling density
@@ -886,7 +981,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     # authors'
     d_ri <- lme4::lmer(log(sampling_density) ~ holc_grade + 
                     (1 | msa_NAME), 
-                    data = hB_)
+                    data = hB_)   
 
     d_rirs <- lme4::lmer(log(sampling_density) ~ holc_grade + 
                 (1 + holc_grade|msa_NAME),
@@ -1016,15 +1111,15 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
     #scale_shape_manual(values = c(21, 16), guide = "none") +  # shapes fixed, no shape legend
     theme_minimal(base_size = 8) +
     labs(
-        x = "",
+        x = "Estimates of sampling density relative to HOLC grade A",
         y = "Model structure",
         color = NULL,
         fill = NULL,
-        subtitle = 'non-zero data\n(n = 8,904)'
+        subtitle = 'non-zero data; log(sampling density) response; Gaussian family\n(n = 8,904)'
     ) +
     theme(
         legend.key.height = unit(0.25, "cm"),  # reduce vertical spacing between items 
-        plot.subtitle = element_text(size = 7, colour = "grey40", margin = margin(b=-25))
+        plot.subtitle = element_text(size = 6, colour = "grey40", margin = margin(b=-22))
         )#; ggsave('Output/Fig_r1_Sampled01_v2.jpg', width = 25, height = 5, units = 'cm')
 
   # including zero data (with a small offset to allow log)
@@ -1177,20 +1272,204 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         y = "Model structure",
         color = NULL,
         fill = NULL,
-        subtitle = 'all data\n(n = 9,847)'
+        subtitle = 'all data; log(sampling density) response; Gaussian family\n(n = 9,847)'
     ) +
     theme(
         legend.position = "none",
         #legend.key.height = unit(0.25, "cm"),  # reduce vertical spacing between items 
-        strip.text = element_blank(),
-        plot.subtitle = element_text(size = 7, colour = "grey40", margin = margin(b=-10))
+        strip.text = element_text(colour = NA),  # reserves strip space
+        strip.background = element_rect(fill = NA, colour = NA),
+        plot.subtitle = element_text(size = 6, colour = "grey40", margin = margin(b=-22))
         )#; ggsave('Output/Fig_r1_Sampled01_v2.jpg', width = 25, height = 5, units = 'cm')
-  
-    # combine
-    (B1 / B2) + plot_layout(axis_titles = "collect"); #ggsave('Output/Fig_r2_sampling-density.jpg', width = 25, height = 8, units = 'cm') 
 
-#' **Figure r2</a> | Differences in estimated sampling density between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A on ln-scale, horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). Top row contains estimates from the dataset with non-sampled polygons removed, bottom row the full dataset (where a small data-derived offset of 0.125 was added to the sampling density before ln-transformation). 
+  # RATES
+    hB[is.na(records), records := 0]
+    
+    # authors'
+    d_ri_r  <- glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+                    (1 | msa_NAME), 
+                    family = nbinom2(),
+                    data = hB)
+
+    d_rirs_r  <- glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+                (1 + holc_grade|msa_NAME), 
+                family = nbinom2(),
+                data = hB)    
+
+    d_fe_rirs_r  <- glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
+            (1 + holc_grade| msa_NAME), 
+            family = nbinom2(),
+            data = hB)          
+    
+    # us
+    mB0_r = glmmTMB(records ~  holc_grade + offset(log(area_holc_km2)) +
+            (1 | city_state), 
+            family = nbinom2(), 
+            data = hB
+            ) 
+
+    mB1_r  = glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            (holc_grade | city_state), family = nbinom2(), 
+            data = hB
+            )
+
+    mB2_r  = glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            (holc_grade_num | city_state), 
+            family = nbinom2(), 
+            data = hB
+            )
+
+    mB1p_r  = glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
+            scale(mean_temp_c)*scale(mean_precip_mm) + 
+            (holc_grade | city_state), 
+            family = nbinom2(), 
+            data = hB
+            )  
+
+    mB2p_r  = glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
+            scale(mean_temp_c)*scale(mean_precip_mm) + 
+            (holc_grade_num | city_state), 
+            family = nbinom2(), 
+            data = hB
+            )
+
+    mB3p_r  = glmmTMB(records ~ holc_grade + offset(log(area_holc_km2)) +
+            scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
+            scale(mean_temp_c)*scale(mean_precip_mm) + 
+             (1|state) + (holc_grade | city_state),  
+            family = nbinom2(),
+            data = hB
+            )  
+
+    # add models to a list
+    models_B_r  <- list(
+    d_ri_r       = d_ri_r ,
+    d_rirs_r     = d_rirs_r ,
+    d_fe_rirs_r  = d_fe_rirs_r ,
+    mB0_r       = mB0_r ,
+    mB1_r        = mB1_r ,
+    mB2_r        = mB2_r ,
+    mB1p_r       = mB1p_r ,
+    mB2p_r       = mB2p_r,    
+    mB3p_r      = mB3p_r 
+    )
+
+    # labels 
+    model_labels_B_r  <- c(
+    d_ri_r       = "HOLC grade + log area km² offset + (1 | metropoly)", 
+    d_rirs_r     = "HOLC grade + log area km² offset + (1 + HOLC grade | metropoly)", 
+    d_fe_rirs_r  = "HOLC grade + log area km² offset + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)",
+    mB0_r        = "HOLC grade + log area km² offset + (1 | city)", 
+    mB1_r        = "HOLC grade + log area km² offset + (HOLC grade | city)", 
+    mB2_r        = "HOLC grade + log area km² offset + (HOLC grade numeric | city)",
+    mB1p_r       = "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+    mB2p_r       = "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+    mB3p_r       = "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+    )
+
+    # sort models
+    models_B_order_r  <- c(
+        "HOLC grade + log area km² offset + (1 | metropoly)",
+        "HOLC grade + log area km² offset + (1 | city)",
+        "HOLC grade + log area km² offset + (1 + HOLC grade | metropoly)",
+        "HOLC grade + log area km² offset + (HOLC grade | city)",
+        "HOLC grade + log area km² offset + (HOLC grade numeric | city)", 
+        "HOLC grade + log area km² offset + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)",
+        "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+        "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+        "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+    )
+
+    # extract TODO: START FIXING HERE and check whether other function to extract glmmTMB exists
+    coef_df_B_r  <- purrr::imap_dfr(models_B_r , ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
+
+    coef_df_B_r  <- coef_df_B_r  %>%
+    dplyr::mutate(model_label = factor(model_labels_B_r [model], levels = models_B_order_r )) %>% data.table()
+
+    # distinquish original models from our alternative ones
+    coef_df_B_r  <- coef_df_B_r  %>%
+    dplyr::mutate(
+        model_group = ifelse(grepl("^d_", model), "Authors' original", "Our new"),
+        model_label = model_labels_B_r [model]
+    )
+
+    coef_df_B_r <- coef_df_B_r  %>%
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_r ))
+
+    red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
+    blue_ =  "#46B8DAFF"
+
+    # plot
+    B3 = 
+    ggplot(coef_df_B_r , aes(x = estimate, y = fct_rev(model_label))) +
+    geom_errorbar(aes(xmin = conf.low, xmax = conf.high, 
+        color = model_group),
+        position = position_dodge(width = 0.6), height = 0) +
+    geom_point(aes(color = model_group, fill = model_group), position = position_dodge(width = 0.6), size = 1.5, shape =21) +
+    geom_vline(xintercept = 0, linetype = "dotted", color = "grey40") +
+    facet_wrap(~ holc_grade) +
+    scale_color_manual(values = c("#D43F3AFF","#46B8DAFF")) +
+    scale_fill_manual(values = c("white","#46B8DAFF")) +
+    #scale_shape_manual(values = c(21, 16), guide = "none") +  # shapes fixed, no shape legend
+    theme_minimal(base_size = 8) +
+    labs(
+        x = "Estimates of sampling density relative to HOLC grade A",
+        y = "Model structure",
+        color = NULL,
+        fill = NULL,
+        subtitle = 'all data; # of observations response with log(area km²) offset; negative binomial family\n(n = 9,847)'
+    ) +
+    theme(
+        legend.position = "none",
+        #legend.key.height = unit(0.25, "cm"),  # reduce vertical spacing between items 
+        strip.text = element_text(colour = NA),  # reserves strip space
+        strip.background = element_rect(fill = NA, colour = NA),
+        plot.subtitle = element_text(size = 6, colour = "grey40", margin = margin(b=-22))
+        )#; ggsave('Output/Fig_r1_Sampled01_v2.jpg', width = 25, height = 5, units = 'cm')
+    
+   # combine
+    lims <- range(c(coef_df_B$conf.low, coef_df_B$conf.high,
+                coef_df_B_a$conf.low, coef_df_B_a$conf.high,
+                coef_df_B_r$conf.low, coef_df_B_r$conf.high), na.rm = TRUE)
+
+    B1 = B1 + scale_x_continuous(limits = lims, breaks = pretty(lims, n = 4))
+    B2 = B2 + scale_x_continuous(limits = lims, breaks = pretty(lims, n = 4))
+    B3 = B3 + scale_x_continuous(limits = lims, breaks = pretty(lims, n = 4))
+
+    (B1 / B2 / B3) + plot_layout(axis_titles = "collect") #ggsave('Output/Fig_r2_sampling-density_v4.jpg', width = 25, height = 12, units = 'cm') 
+
+#' **Figure 2</a> | Differences in estimated sampling density between HOLC grades across modelling approaches.** Dots represent differences relative to HOLC grade A, horizontal lines show 95% confidence intervals, expressed on the model’s link scale: ln-scale for Gaussian models (top, middle), log-link scale for negative-binomial models (bottom). Red open circles denote models specified by the original authors, blue filled circles those specified by us. The y-axis lists model structures, with terms in the parentheses indicating random effects (left of `|` = random slopes; right = random intercepts). The three model sets represent: (top) Gaussian models of ln-transformed sampling density excluding zeros, (middle) Gaussian models including zeros with a small data-derived offset of 0.125 added to the response variable before ln-transformation, and (bottom) negative-binomial count models with an ln(area km²) offset, modelling counts while accounting for polygon area.
+#' 
+#' 
+model_comp <- data.table(
+  Model_type = c(
+    "log(rate), non-zero",
+    "log(rate + ε)",
+    "counts + offset(log(area)) (NB2)"
+  ),
+  Zeros_included = c("No", "Yes (ε-adjusted)", "Yes (native)"),
+  Heteroscedasticity = c("Mild", "Strong (fan shape)", "Minimal"),
+  Pearson_dispersion = c("3–4", "6+", "≈2–4"),
+  Spatial_autocorr = c("Weak", "Weak", "Weak"),
+  Conceptual_validity = c(
+    "Biased (zero omission)",
+    "Arbitrary transform",
+    "Correct data-generating process"
+  )
+)
+
+model_comp %>%
+  kableExtra::kbl(align='l', linesep = "", caption = "Comparison of model formulations for sampling intensity analysis") %>%
+  kableExtra::kable_paper(c("striped", "condensed"), full_width = F, position = "left")
+
+
+#' The original authors modelled log(sampling density) using Gaussian models, either excluding zeros or adding a small constant. Our modelling of both these variants reproduced the qualitative pattern of reduced sampling in lower HOLC grades, yet the absolute differences were sensitive to data transformation and model structure. When re-analysed as count data with an offset for polygon area and a negative-binomial family, the direction of effects remained consistent, but estimates became slightly less extreme and more stable across model specifications. This stability reflects that the count-offset formulation properly accounts for unequal polygon areas, includes zeros without arbitrary transformation, and models overdispersion explicitly rather than absorbing it into residual variance.
 #'  
+#' Across all variants, the conservative random-effects structure (city_state) yielded comparable estimates while better controlling for local clustering of observations. Together, these results confirm that the apparent HOLC-grade pattern is robust in direction but that Gaussian log-rate models exaggerate its magnitude by ignoring area and count-process properties.
+#' 
 #' <br>
 #'   
 #' ## C. Completeness of sampling
@@ -1222,11 +1501,15 @@ mC1= lmer(completeness ~ holc_grade +
     (holc_grade | city), 
     data = hC)
 
-mC2= lmer(completeness ~ holc_grade + 
+mC1b= lmer(completeness ~ holc_grade + log(area_holc_km2) +
+    (holc_grade | city), 
+    data = hC)    
+
+mC2= lmer(completeness ~ holc_grade + log(area_holc_km2) +
     (holc_grade_num | city), 
     data = hC)
 
-mC1p= lmer(completeness ~ holc_grade + 
+mC1p= lmer(completeness ~ holc_grade + log(area_holc_km2) + 
     scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
     scale(mean_temp_c)*scale(mean_precip_mm) + 
     (holc_grade | city), 
@@ -1235,7 +1518,7 @@ mC1p= lmer(completeness ~ holc_grade +
                          optCtrl = list(maxfun = 2e5))
     )  
 
-mC2p= lmer(completeness~ holc_grade + 
+mC2p= lmer(completeness~ holc_grade + log(area_holc_km2) + 
     scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
     scale(mean_temp_c)*scale(mean_precip_mm) + 
     (holc_grade_num | city), 
@@ -1244,7 +1527,7 @@ mC2p= lmer(completeness~ holc_grade +
                          optCtrl = list(maxfun = 2e5))
     )  
 
-mC3p= lmer(completeness~ holc_grade + 
+mC3p= lmer(completeness~ holc_grade + log(area_holc_km2) + 
     scale(ndvi) + scale(pct_pa) + scale(pop_per_km) + 
     scale(mean_temp_c)*scale(mean_precip_mm) + 
     (1 | state) + (holc_grade_num | city), 
@@ -1260,6 +1543,7 @@ models_C <- list(
   c_fe_rirs = c_fe_rirs,
   mC0       = mC0,
   mC1       = mC1,
+  mC1b       = mC1b,
   mC2       = mC2,
   mC1p      = mC1p,
   mC2p      = mC2p,
@@ -1273,10 +1557,11 @@ model_labels_C <- c(
     c_fe_rirs = "HOLC grade + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)",
     mC0       = "HOLC grade + (1 | city)", 
     mC1       = "HOLC grade + (HOLC grade | city)", 
-    mC2       = "HOLC grade + (HOLC grade numeric | city)",
-    mC1p      = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-    mC2p      = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
-    mC3p = "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+    mC1b      = "HOLC grade + area km² + (HOLC grade | city)", 
+    mC2       = "HOLC grade + area km² + (HOLC grade numeric | city)",
+    mC1p      = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+    mC2p      = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+    mC3p      = "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
     )
 
 # sort models
@@ -1285,11 +1570,12 @@ models_C_order <- c(
     "HOLC grade + (1 | city)",
     "HOLC grade + (1 + HOLC grade | metropoly)",
     "HOLC grade + (HOLC grade | city)",
-    "HOLC grade + (HOLC grade numeric | city)", 
+    "HOLC grade + area km² + (HOLC grade | city)",
+    "HOLC grade + area km² + (HOLC grade numeric | city)", 
     "HOLC grade + NDVI + protected area % + population density + (1 + HOLC grade | metropoly)",
-    "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
-    "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
-    "HOLC grade + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
+    "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade | city)",
+    "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (HOLC grade numeric | city)",
+    "HOLC grade + area km² + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
 )
 
 # extract
@@ -1324,7 +1610,7 @@ scale_fill_manual(values = c("white","#46B8DAFF")) +
 #scale_shape_manual(values = c(21, 16), guide = "none") +  # shapes fixed, no shape legend
 theme_minimal(base_size = 8) +
 labs(
-    x = "Estimates of completeness relative to HOLC grade A",
+    x = "Estimates of sampling completeness relative to HOLC grade A",
     y = "Model structure",
     color = NULL,
     fill = NULL
@@ -1332,10 +1618,12 @@ labs(
 theme(
     legend.key.height = unit(0.25, "cm")  # reduce vertical spacing between items 
     #plot.subtitle = element_text(size = 7, colour = "grey40", margin = margin(b=-25))
-    )#; ggsave('Output/Fig_r3_completeness.jpg', width = 25, height = 5, units = 'cm')
+    )#; ggsave('Output/Fig_3_completeness.jpg', width = 25, height = 5, units = 'cm')
 
-#' **Figure r3</a> | Differences in estimated sampling completeness between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A, horizontal lines indicate 95% confidence intervals, colour models specified by the authors (red empty circles) or by us (blue filled circles). The y-axis highlights specific model structure with variables in the paranthesis indicating random effects (left from `|` indicating random slopes and right from `|` indicating random intercepts). n = `r nrow(hC)` polygons (neighbourhoods).
-#' 
+#' **Figure 3</a> | Differences in estimated sampling completeness between HOLC grades.** Dots represent differences (in mean values) relative to HOLC grade A. Horizontal lines indicate 95% confidence intervals. Red empty circles indicate models specified by the authors, blue filled circles those specified by us. The y-axis lists specific model structure, with variables in the parentheses indicating random effects (left of `|` =  random slopes; right = random intercepts). n = `r nrow(hC)` HOLC polygons (neighbourhoods).
+#'  
+#' Our replication supports the same qualitative trends but quantifies a larger disparity for A-D, and demonstrates that robustness improves with model complexity and adequate random-effect specification.
+#'
 #' <br>
 #' 
 #' ***
@@ -1353,7 +1641,7 @@ theme(
 #' 
 #' We did not find the code generating the 35.6% claim (Abstract p. 1869 & Results p. 1871), hence could only speculate how this was calculated. Using the authors data on sampling density per year and HOLC grade and calculating the ratio between A/D for 2020 and A/D for 2000 generated a different result (`r dispar`%). This result seems to reflect the one (~40%) from  Fig. 4 legend.
 #' 
-#' Moreover, plotting the disparity data shows a non-linear temporal relationship (Fig. [X](#F_X)A) both after 2000 (left panel) and before 2000 right panel) and depending on the dataset may be even negative for A grade (Fig. [X](#F_X)B). Such results question the use of arbitrary 2000 and 2020 comparison, unjustified by the authors, who also do not justify the exclusion of <2000 years. Including <2000 years shows even more complex picture, albeit the <2000 data might be less reliable because online platforms were non-existent (and likely also represent post-hoc data entries after GBIF platform was launched).
+#' Moreover, plotting the raw disparity data along with exploratory smoothing curves shows a non-linear temporal relationship (Fig. [X](#F_X)A) both using only data after the year 2000 (left panel) or all data right panel) and depending on the dataset may be even negative for A grade (Fig. [X](#F_X)B). Such results question the use of arbitrary 2000 and 2020 comparison,  unjustified by the authors (TODO:Peto can we say that it was unjustified), who also do not justify the exclusion of <2000 years. Including <2000 years shows even more complex picture, albeit the <2000 data might be less reliable because online platforms were non-existent (and likely also represent post-hoc data entries after GBIF platform was launched).
 #' 
 #' 
 #+ F_X, fig.width = 15/2.5, fig.height = 15/2.5
@@ -1412,7 +1700,7 @@ ggdraw(xlim = c(-0.04, 1), ylim = c(-0.03, 1)) +
   draw_label("Relative disparity between HOLC grade A and D\n[%; D as a baseline]", x = -0.06, y = 0.5, angle = 90, vjust = 1.5, size = 11) #ggsave('Output/Fig_X-trends_3-rows_holc-area-b-all.jpg', units = 'cm', width = 15, height = 21)
 
 #' <a name="F_X">
-#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; the first two rows) or median sampling density per HOLC grade and year (bottom row). Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represents the aggregation done by the authors, middle and bottom row the aggregation done by us. Note that the authors' dataset did not contain area per year and category; hence, we were unable to compute the median sampling density for their dataset.
+#' **Figure X</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents percentage difference in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; the first two rows) or median sampling density per HOLC grade and year (bottom row). Lines represent  local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represents the aggregation done by the authors, middle and bottom row the aggregation done by us. Note that the authors' dataset did not contain area per year and HOLC grade; hence, we were unable to compute the median sampling density for their dataset.
 #' 
 #' TODO: Martin check whether the above is meaningful and whether authors' scripts cannot be tweeked to provide neighbourhoods ids.  
 #'  <br>

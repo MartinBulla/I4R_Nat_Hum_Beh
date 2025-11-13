@@ -1,7 +1,6 @@
 # =============================================================
 # Adjusted authors' code '04_R4_uneven_biodiversity_data_2023.R'
-# Generates dataset aggregated by year abd neighberhood and 
-# by year, neighberhood and data source
+# Generates observation dataset aggregated by year and neighborhood along with neighborhood's area km2
 #❗ Runs relative to the project's root directory, requires
 # XX, and exports Mape_R1_biodiv_sum_bird_obs_by_holc_id_year.csv into ./Data/MaPe.
 # =============================================================---
@@ -18,46 +17,36 @@ install_if_missing(pkgs)
 
 # --- --- ---
 # Load downloaded Holc polygons from the Mapping Inequality project form the University of Richmond
+#❗the original author's code uses shape file holc_ad_data.shp here, but that file has lower number of polygons and polygon ids that do not match those from raw Rdata observations; we thus use use their file that contains along holc parameters also holc soc dem information (albeit we do not know how that file was generated)
 # --- --- ---
 
-holc <- st_read('Data/holc_ad_data.shp') %>% 
-  sf::st_cast('POLYGON') %>% # IMPORTANT
-  dplyr::filter(!st_is_empty(.)) %>% 
-  sf::st_make_valid(.) %>% 
-  tibble::rowid_to_column() %>% 
-  dplyr::mutate(  id = paste(state, city, holc_id, holc_grade, rowid, sep = '_')
-                  , city_state = paste0(city, ', ', state)
-                  , area_holc_km2 = as.double(st_area(.) / 1e+6)) %>% 
-  dplyr::select(id, state, city, holc_id, holc_grade, city_state, area_holc_km2, neighborho) # MaPE added neghborho
 
+ holc <- readr::read_csv('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'
+                   , col_select = c(id : area_holc_km2
+                                    , holc_tot_pop
+                                    , msa_GEOID : msa_total_popE
+                                    , msa_gini))
 holc_ = data.table(holc) # MaPe make it a data.table
-h = holc_[!is.na(holc_id)] # MaPe remove 124 unnamed polygons nrow(holc_)-nrow(k)             
-h[, id2 :=paste(paste(city,state, sep = ', '), holc_id)] # MaPe - create unique ID
-
-# Calculate the overal area of all holc polygons per holc grade
-holc_area <-  holc %>% dplyr::select(city, holc_grade, area_holc_km2) %>% dplyr::group_by(holc_grade) %>% dplyr::summarise(area_sum = sum(area_holc_km2)) %>% dplyr::filter(holc_grade != 'E')  %>% as_tibble() %>% dplyr::select(-geometry)
 
 # List all .Rdata files in input folder that contain bird biodiversity data:
-aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T) # MaPe
+aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T)
 
 
 # --- --- ---
 # [1] Loop through all  HOLC polygons with bird biodiversity data and
-# count the number of observations per single HOLC polygon, and year, and 
-# polygon, data_source and year. 
-# Note files with missing holc_ids cannot be merged with area and were removed
+# count the number of observations per single HOLC polygon, and year
+
+# Note files with missing id cannot be merged with area and were removed
 # --- --- ---
 
-# test
+# test start
 i = unique(aves_obs)[1]
 biodiv_data = aves_obs[str_detect(aves_obs, pattern = i)]
 results <- sapply(biodiv_data, function(x) mget(load(x)), simplify = TRUE)  
 obj <- results[[1]]   
 nm <- names(obj)
 nm[order(nm)]  
-
 dt <- as.data.table(results[[1]]) 
-
 # test end
 
 u <- unique(aves_obs)
@@ -65,20 +54,19 @@ n <- length(u)
 pb <- txtProgressBar(min = 0, max = n, style = 3)
 
 for(k in seq_along(u)) {
-   # i = unique(aves_obs)[1]
+   # k = 5555
   i <- u[k]
   setTxtProgressBar(pb, k)
   
-  print(i)
+  print(paste(k, i))
   
   if(!any(str_detect(aves_obs, pattern = i))==TRUE){
     print(paste0(i, ' has no biodiversity data'))
     next
   }
   
-  biodiv_data = aves_obs[str_detect(aves_obs, pattern = i)]
-  
   # Load the single polygon with bird biodiversity data
+  biodiv_data = aves_obs[str_detect(aves_obs, pattern = i)]
   results <- sapply(biodiv_data, function(x) mget(load(x)), simplify = TRUE) 
   
   # Keep only desired columns as GBIF has 200+ columns
@@ -91,6 +79,7 @@ for(k in seq_along(u)) {
              'collectionID',
              'institutionCode',
              'year',
+             'state',
              'city',
              'city_state',
              'holc_id',
@@ -104,29 +93,30 @@ for(k in seq_along(u)) {
   d = data.table(df)  
   
   # stop running if holc_id not unique, i.e. A, B, C, D, E
-  if(unique(d$holc_grade)==unique(d$holc_id) | is.na(unique(d$holc_id)) ){
-    print(paste0('no unique holc_id data ini', i))
+  if(is.na(unique(d$id)) ){
+    print(paste0('no unique id in', i))
     next # skips files without unique holc ids
   }
   
   # adjust variables
   d[, holc_polygon := gsub('.Rdata','', basename(i))]
-  d[ ,lat:= decimalLatitude[1]] 
-  d[ ,lon:= decimalLongitude[1]]
+  d[ ,lat:= decimalLatitude] # taking one lat value out of all
+  d[ ,lon:= decimalLongitude] # taking one lon value out of all
   d[, id2 :=paste(city_state, holc_id)] # create unique ID
 
- 
   # add area  
-  d = merge(d, h[,.(id2, state, area_holc_km2)], by = 'id2',all.x = TRUE)
-  #d[, area_holc_km2:=holc_[id2%in%d$id2[1], area_holc_km2]] # merge
+   d0 = d[, .(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, species, family, genus)] # unique lat/lon per observation
+  exists <- file.exists('Data/MaPe/mape_DAT_all.csv')
+  fwrite(d0, file = 'Data/MaPe/mape_DAT_all.csv', append = exists, col.names = !exists) #corresponds to the author's R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains year and km2
 
   # count per year and polygon (note that some ebird records have atlas data)
-  dd = d[, list(sum_bird_obs = length(species)), by = list(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, area_holc_km2)]
-  
-  exists <- file.exists('Data/MaPe/mape_num-of-obs_by_holc_id_year.csv')
-  fwrite(dd, file = 'Data/MaPe/mape_num-of-obs_by_holc_id_year.csv', append = exists, col.names = !exists)   #corresponds to the author's R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains further variables
+  d[ ,lat:= decimalLatitude[1]] # taking one lat value out of all
+  d[ ,lon:= decimalLongitude[1]] # taking one lon value out of all
 
-  #write.table(dd, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year.csv", append = T, row.names = F,col.names = F, sep = ",") 
+  dd = d[, list(sum_bird_obs = length(species)), by = list(city_state, city, state, year, id, holc_polygon, holc_grade, lat, lon)]
+  
+  exists1 <- file.exists('Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv')
+  fwrite(dd, file = 'Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv', append = exists1, col.names = !exists1)   
 
   # 2000-2020 count per year, data source and polygon (note that some ebird records have atlas data)
   b =d[year >= 2000 & year <= 2020]  
@@ -134,9 +124,18 @@ for(k in seq_along(u)) {
   b[institutionCode %in% 'iNaturalist', collectionCode := 'iNaturalist']
   b[!collectionCode%in%c('ebird','iNaturalist'), collectionCode:='other']
   
-  bb = b[, list( sum_bird_obs = length(species)), by = list(city_state, city, state, year, collectionCode, id, id2, holc_polygon, holc_grade, lat, lon, area_holc_km2)]  
-  exists2 <- file.exists('Data/MaPe/mape_num-of-obs_by_holc_id_year_data-source.csv')
-  fwrite(bb, file = 'Data/MaPe/mape_num-of-obs_by_holc_id_year_data-source.csv', append = exists2, col.names = !exists2)  
+  bb = b[, list( sum_bird_obs = length(species)), by = list(city_state, city, state, year, collectionCode, id, holc_polygon, holc_grade, lat, lon)]  
+  exists2 <- file.exists('Data/MaPe/2025-11-12_mape_num-of-obs_by_year_data-source_polygon.csv')
+  fwrite(bb, file = 'Data/MaPe/2025-11-12_mape_num-of-obs_by_year_data-source_polygon.csv', append = exists2, col.names = !exists2)  
   #write.table(dd, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year_data-source.csv", append = T, row.names = F, col.names = F, sep = ",") 
 }
 close(pb)
+
+
+
+#TODO: CHECK HOW WE STAND
+biodiv_sum = fread('Data/MaPe/mape_DAT_all.csv')
+
+sum(biodiv_sum$Sum) # Our paper says 10,043,533 georeferenced ocurrences but I have 10,048,895 here
+
+# TODO merge on to holc dataset but in a loop and per year 
