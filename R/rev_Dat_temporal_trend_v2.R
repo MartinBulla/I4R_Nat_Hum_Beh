@@ -2,8 +2,9 @@
 # Adjusted authors' code '04_R4_uneven_biodiversity_data_2023.R'
 # Generates observation dataset aggregated by year and neighborhood along with neighborhood's area km2
 #❗ Runs relative to the project's root directory, requires
-# XX, and exports Mape_R1_biodiv_sum_bird_obs_by_holc_id_year.csv into ./Data/MaPe.
-# =============================================================---
+#  '*_Aves_all_observations.Rdata' files in 'original_paper/Data/Biodiversity_holc_all' and 'original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'
+# exports files into ./Data/MaPe.
+# ==============================================================
 
 # load packages
 pkgs <- c("data.table","dplyr","here","sf","stringr","tibble")
@@ -16,28 +17,11 @@ install_if_missing <- function(pkgs) {
 install_if_missing(pkgs)
 
 # --- --- ---
-# Load downloaded Holc polygons from the Mapping Inequality project form the University of Richmond
-#❗the original author's code uses shape file holc_ad_data.shp here, but that file has lower number of polygons and polygon ids that do not match those from raw Rdata observations; we thus use use their file that contains along holc parameters also holc soc dem information (albeit we do not know how that file was generated)
-# --- --- ---
-
-
- holc <- readr::read_csv('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'
-                   , col_select = c(id : area_holc_km2
-                                    , holc_tot_pop
-                                    , msa_GEOID : msa_total_popE
-                                    , msa_gini))
-holc_ = data.table(holc) # MaPe make it a data.table
-
-# List all .Rdata files in input folder that contain bird biodiversity data:
-aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T)
-
-
-# --- --- ---
 # [1] Loop through all  HOLC polygons with bird biodiversity data and
 # count the number of observations per single HOLC polygon, and year
-
-# Note files with missing id cannot be merged with area and were removed
 # --- --- ---
+
+aves_obs = list.files(here::here('original_paper/Data/Biodiversity_holc_all'), pattern = 'Aves_all_observations.Rdata', full.names = T) # List all .Rdata files in input folder that contain bird biodiversity data 
 
 # test start
 i = unique(aves_obs)[1]
@@ -53,6 +37,9 @@ u <- unique(aves_obs)
 n <- length(u)
 pb <- txtProgressBar(min = 0, max = n, style = 3)
 
+save_all = FALSE # set to TRUE if you want to save all observations; creates 2GB dataset
+
+# exporting data (aggregated and raw observations)
 for(k in seq_along(u)) {
    # k = 5555
   i <- u[k]
@@ -104,14 +91,16 @@ for(k in seq_along(u)) {
   d[ ,lon:= decimalLongitude] # taking one lon value out of all
   d[, id2 :=paste(city_state, holc_id)] # create unique ID
 
-  # add area  
-   d0 = d[, .(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, species, family, genus)] # unique lat/lon per observation
-  exists <- file.exists('Data/MaPe/mape_DAT_all.csv')
-  fwrite(d0, file = 'Data/MaPe/mape_DAT_all.csv', append = exists, col.names = !exists) #corresponds to the author's R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains year and km2
+  # save all observations
+  if(save_all) {
+    d0 = d[, .(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, species, family, genus)] # unique lat/lon per observation
+    exists <- file.exists('Data/MaPe/mape_DAT_all.csv')
+    fwrite(d0, file = 'Data/MaPe/mape_DAT_all.csv', append = exists, col.names = !exists) #corresponds to the author's R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains year and km2
+  }
 
   # count per year and polygon (note that some ebird records have atlas data)
-  d[ ,lat:= decimalLatitude[1]] # taking one lat value out of all
-  d[ ,lon:= decimalLongitude[1]] # taking one lon value out of all
+  d[ ,lat:= first(decimalLatitude)] # taking one lat value out of all
+  d[ ,lon:= first(decimalLongitude)] # taking one lon value out of all
 
   dd = d[, list(sum_bird_obs = length(species)), by = list(city_state, city, state, year, id, holc_polygon, holc_grade, lat, lon)]
   
@@ -131,11 +120,106 @@ for(k in seq_along(u)) {
 }
 close(pb)
 
+# CHECK HOW WE STAND
+#biodiv_sum = fread('Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv') #biodiv_sum = fread('Data/MaPe/mape_DAT_all.csv')
 
+#sum(biodiv_sum$sum_bird_obs) # author' comments indicateL "paper says 10,043,533 georeferenced ocurrences but I have 10,048,895 here"; we have 12,296,735
 
-#TODO: CHECK HOW WE STAND
-biodiv_sum = fread('Data/MaPe/mape_DAT_all.csv')
+# --- --- ---
+# Merge on to holc dataset 
+# --- --- ---
 
-sum(biodiv_sum$Sum) # Our paper says 10,043,533 georeferenced ocurrences but I have 10,048,895 here
+# load downloaded Holc polygons from the Mapping Inequality project form the University of Richmond
+#❗the original author's code uses shape file holc_ad_data.shp here, but that file has lower number of polygons and polygon ids that do not match those from raw Rdata observation files (used above); we thus use use the author's file that contains along holc parameters also holc soc dem information (albeit we do not know how that file was generated), as there the holc ids match those from the RData files
 
-# TODO merge on to holc dataset but in a loop and per year 
+holc <- data.table(readr::read_csv('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'
+                   , col_select = c(id : area_holc_km2
+                                    , holc_tot_pop
+                                    , msa_GEOID : msa_total_popE
+                                    , msa_gini))
+)
+
+# keep, filter                 
+holc = holc[!holc_grade%in%'E', .(id, state, city, holc_id, holc_grade, city_state, area_holc_km2, holc_tot_pop)]
+
+# load the # observations per polygon, holc grade and year
+o = fread('Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv')
+
+# check: lat/lon unique per id
+chk <- o[, uniqueN(.SD), by = id, .SDcols = c("lat","lon")]
+stopifnot(all(chk$V1 == 1L))
+
+# aggregated per id-year (safeguard in case of duplicated rows per id-year)
+o_sub <- o[, .(
+  sum_bird_obs = sum(sum_bird_obs),
+  lat          = first(lat),
+  lon          = first(lon)
+), by = .(id, year)]
+
+# add one lat/lon per plygon to holc
+holc = unique(o_sub[, .(id, lat, lon)], by = "id")[holc, on = "id"]
+
+# set keys (helpful for joins/search)
+setkey(o_sub, id, year)
+setkey(holc, id)
+
+# all id × year combos
+grid <- CJ(id = unique(holc$id), year = 1932:2022, unique = TRUE)
+
+# add static HOLC attributes by id
+grid <- holc[grid, on = "id"]   # left-join: brings state/city/... to each (id,year)
+
+# left-join per-year observations; keeps all `grid` rows
+res <- o_sub[, .(id, year, sum_bird_obs)][grid, on = .(id, year)]
+
+# fill zeros where a polygon-year had no observations
+res[, sum_bird_obs := nafill(sum_bird_obs, fill = 0L)]
+
+# enforce integer type
+res[, sum_bird_obs := as.integer(sum_bird_obs)]
+
+# final columns
+out <- res[, .(id, state, city,  city_state, lat, lon, holc_id, holc_grade, area_holc_km2, holc_tot_pop, 
+              year, sum_bird_obs)]
+
+# checks: 
+#stopifnot(nrow(out) == uniqueN(holc$id) * length(1932:2022)) # full id × year coverage
+#stopifnot(!anyNA(holc$lat), !anyNA(holc$lon)) # all polygons got lat/lon
+#ch = out[, sum(sum_bird_obs), id]
+#ch[V1==0]
+
+# ❗the lat/lon is missing for 943 polygons (those with no bird observation) and the authors' shape files (holc_ad_data.shp) contains only polygons where birds were observed; because 'o' already contains many polygons per city with stable coordinates, we use the mean of available polygon lat/lon within city_state as a reasonable fallback for missing polygons in the same city. It preserves city-level spatial context.
+
+  # one lat/lon per id from obs where available
+  id_latlon_obs <- unique(o[!is.na(lat) & !is.na(lon), .(id, lat, lon, city_state)], by = "id")
+  
+  # which ids in HOLC have no lat/lon in obs?
+  missing_ids_dt   <- unique(out[is.na(lat), .(id, city_state)], by = "id")
+
+  # mean lat/lon of polygons observed in that city
+  city_centroids <- o[!is.na(lat) & !is.na(lon),
+    .(lat = mean(lat), lon = mean(lon)),
+    by = city_state
+  ]
+
+  # add lat/lon
+  fixed_latlon = city_centroids[missing_ids_dt, on = "city_state"] 
+
+  # set key
+    setkey(out, id)
+    setkey(fixed_latlon, id) 
+
+  # fill only where missing, keep existing values otherwise
+    out[fixed_latlon, on = .(id),
+      `:=`(
+        lat = fcoalesce(lat, i.lat),
+        lon = fcoalesce(lon, i.lon)
+      )
+    ]
+
+  # recheck 
+    stopifnot(sum(is.na(out$lat) | is.na(out$lon)) == 0)
+
+# export and clean
+fwrite(out, 'Data/MaPe/DAT_obs_year_polygon.csv', yaml = TRUE)
+gc()

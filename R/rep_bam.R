@@ -64,7 +64,7 @@ load(file='Data/Dat_bam_output.Rdata')
             data=d00, method="fREML", discrete=TRUE, select=TRUE, gc.level=2)
     save(file='Data/Dat_bam-nb_output.Rdata', m_nb)  
     load(file='Data/Dat_bam-nb_output.Rdata') 
-                                                                                    m_ass(file_name = 'test_bam-nb_1', mo = m_nb, dat = d00, offset = TRUE, cont = c("year", "area_holc_km2"), categ = 'holc_grade',show_binned = TRUE, show_temporal_grouped = 'year', PNG = TRUE) # slight spatial pattern → either real biological clustering or residual heterogeneity (city/state-level not fully captured); that’s a small, interpretable residual pattern, not a modeling flaw; the model assumptions look nearly identical to ooks nearly identical to the mas1D_nb with nbinom2(), dispformula = ~ holc_grade_D + scale(log(area_holc_km2))           
+                                                                                    m_ass(file_name = 'test_bam-nb_1', mo = m_nb, dat = d00, offset = TRUE, cont = c("year", "area_holc_km2"), categ = 'holc_grade',show_binned = TRUE, show_temporal_grouped = 'year', PNG = TRUE) # slight spatial pattern → either real biological clustering or residual heterogeneity (city/state-level not fully captured); that’s a small, interpretable residual pattern, not a modeling flaw; the model assumptions look nearly identical to the mas1D_nb with nbinom2(), dispformula = ~ holc_grade_D + scale(log(area_holc_km2))           
 
 #### diagnostics
 library(gratia)
@@ -123,14 +123,14 @@ lev <- function(x) levels(x)[1]
 const <- list(
   state      = lev(d00$state),
   city_state = lev(d00$city_state),
-  id2        = lev(d00$id2)
+  id        = lev(d00$id)
 )
 excl <- c("s(state)","s(city_state)","s(id2)","s(city_state):year_s")
 
 ndA <- data.frame(
   year_s = yr_s, year = yr,
   holc_grade = factor("A", levels = levels(d00$holc_grade)),
-  state = const$state, city_state = const$city_state, id2 = const$id2,
+  state = const$state, city_state = const$city_state, id = const$id,
   area_holc_km2 = 1
 )
 ndD <- ndA; ndD$holc_grade <- factor("D", levels = levels(d00$holc_grade))
@@ -207,7 +207,7 @@ ggplot(out_nb, aes(year, abs)) +
 
 g_t1_nb / g_t2_nb / g_t3_nb / g_t4_nb + plot_layout(axis_title = 'collect', axes = "collect")  
 
-ggsave('Output/bam-nb_diffAD.png', width = 7, height = 16, units = 'cm')
+ggsave('Output/bam-nb_diffAD_v2.png', width = 7, height = 16, units = 'cm')
 
 #### f) Per-grade marginal curves (per km²), with CIs
 yrs <- yr; yrs_s <- yr_s
@@ -218,7 +218,7 @@ make_nd <- function(g) data.frame(
   year = yrs, year_s = yrs_s,
   state = lvl1(d00$state),
   city_state = lvl1(d00$city_state),
-  id2 = lvl1(d00$id2),
+  id = lvl1(d00$id),
   area_holc_km2 = 1
 )
 
@@ -264,7 +264,7 @@ ggplot(curves_nb, aes(year, fit_orig, colour = holc_grade, fill = holc_grade)) +
 
 g_bam1_nb / g_bam2_nb  + plot_layout(axis_title = 'collect', axes = "collect")  
 
-ggsave('Output/bam-nb_ABCD.png', width = 8, height = 9, units = 'cm')
+ggsave('Output/bam-nb_ABCD_v2.png', width = 8, height = 9, units = 'cm')
 ####
 
 #### COMPARE A and D (relative; marginal with pointwise 95%CI)
