@@ -18,15 +18,12 @@
 #' <style> body {text-align: justify}</style>
  
 #+ r setup, include=FALSE 
-knitr::opts_knit$set(root.dir = normalizePath(".."))
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
- 
+
+#knitr::opts_knit$set(root.dir = normalizePath(".."))
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)  
+
 #' # General note  
 #' For the sake of reproducibility we stored the files from the [repository](https://doi.org/10.5281/zenodo.8052525) that acompanied original publication [@ellis-soto_historical_2023] in the folder [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/R/) folder (at the root project’s directory) with subfolders ‘Data’ and ‘Code’ (the latter two with the file structure as provided by the authors). We stored the additional data shared by the authors upon the request from The Institute for Replication in the ‘Data’ folder within the root project directory. Datasets that we recreated using the authors code `04_R4_uneven_biodiversity_data_2023.R` are at 'Data/from_code_04'. Additional data recreated by us using our script [rev_Dat_temporal_trend.R](R/rev_Dat_temporal_trend.R) (which is the adjusted version of the authors' `04_R4_uneven_biodiversity_data_2023.R`) are at 'Data/MaPe'. 
-#' 
-#' # TODO:
-#' 1. add the new_model_ass.R into the code
-#' 2. update the temp anal using the new data.
 #' 
 #' Scripts generating the outputs of this html are available upon clicking the `code` button at top right above each display item!
 #' 
@@ -36,7 +33,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
 #+ start, echo = T, results = 'hide', warning=FALSE
 
 # 1. load or install packages
-pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggsci","ggtext", "glmmTMB", "grid", "gtable", "kableExtra", "lme4", "MASS", "mgcv", "patchwork", "readr", "scales", "sjPlot", "tibble", "tidyverse")  # list of packages
+pkgs <- c("cowplot","data.table","dplyr", "forcats", "ggh4x","ggplot2","ggpp", "ggsci","ggtext", "glmmTMB", "grid", "gtable", "here","kableExtra", "lme4", "MASS", "mgcv", "patchwork", "readr", "scales", "sjPlot", "tibble", "tidyverse")  # list of packages
 
 install_if_missing <- function(pkgs) {
   to_install <- setdiff(pkgs, rownames(installed.packages()))
@@ -48,6 +45,8 @@ install_if_missing(pkgs)
 
 # 2. constants and functions
 recreate_data = FALSE # use TRUE, if you wish to recreate the per year data (❗runs for long), instead of loading them from .Data/ 
+
+recompute_diag = FALSE # shall the diagnostic plots be recomputed (take time)
 
 # Color palette for redlining
 holc_pal <- c('#92BC6B' # green
@@ -78,6 +77,28 @@ circle_at_tag <- function(xy = tag_pos, r_pt = 6){
     xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf
   )
 }               
+
+# remove x-axis of some ggplot panels
+gtable_filter_remove <- function (x, name, trim = TRUE){
+  matches <- !(x$layout$name %in% name)
+  x$layout <- x$layout[matches, , drop = FALSE]
+  x$grobs <- x$grobs[matches]
+  if (trim) 
+    x <- gtable_trim(x)
+  x
+}
+#  place log10 minor breaks at 2..9 * 10^k
+minor_breaks_log10 <- function(lims) {
+  lo <- floor(log10(lims[1])); hi <- ceiling(log10(lims[2]))
+  as.numeric(outer(1:9, 10^(lo:hi), `*`))
+}
+
+# minor breaks only for >0
+minor_breaks_log10_if0 <- function(lims){
+  hi <- lims[2]; lo <- max(1, lims[1])
+  if (hi <= 1) return(NULL)
+  as.numeric(outer(1:9, 10^(floor(log10(lo)):ceiling(log10(hi))), `*`))
+}
 
 # function for quick plotting
 plot_effects_holc <- function(
@@ -479,38 +500,802 @@ lab_log_rr <- function(x) sprintf("%0.2f\n(×%0.2f)", x, exp(x))
 # composite tick labels: first line = log, second line = % change
 lab_log_plus_pct <- function(x) sprintf("%.2f\n(%+d%%)", x, round((exp(x)-1)*100))
 
+# model assumption function
+m_ass = function(
+    name = 'diagnostics', # define model name (used as file name and in a title)
+    mo = your_model, # mo: model
+    dat = your_data,  # dat: data used in the model
+    accumulate = FALSE,   # collect panels (TRUE) or draw immediately (FALSE)
+
+    # lists of variables to visualize against residuals
+    cont = NULL, # vector of variable names used as continues fixed effects
+    categ = NULL, # vector of variable names used as categorical fixed effects
+    trans = "none", # vector of transformations used for each fixed effect
+    #nested = FALSE, # indicate whether some of the random intercepts are nested,
+    # plots to show
+    offset = FALSE, # TRUE if offset was used
+    show_base     = TRUE,   # fitted-vs-resid, sqrt|res|
+    show_binned    = FALSE,  # observed vs fitted (binned fitted and means of observed)
+    show_reqq     = TRUE,      # random-effects Q–Q
+    show_temporal = TRUE, # PACF(residuals)
+    show_temporal_grouped = NULL, # PACF on means of temporal variable (e.g. year)
+    show_spatial = TRUE, # PACF(residuals)
+    lat_var = 'lat',
+    lon_var = 'lon',
+    max_points = 10000, # max number of points to plot; if n higher, the data will be sampled to get 5000
+    PNG = TRUE,  width_ = 10, height_ = 2,
+    n_col = 6, n_row = NULL, # number of columns and rows if automatic calculation not desirable
+    colour_pt = rgb(0,0,0,0.15),
+    wrap_title = FALSE, wrap_width = 100, 
+    outdir = 'Output/Model_ass'
+  ){ #output directory
+
+  ## example ##
+   #m_ass(name = "Table S1a - full a", mo = mhs, dat = dh, fixed = c("SD", "FlockSize", "BodyMass", "rad", "rad", "Temp", "Human"), trans = c("log", "log", "log", "sin", "cos", "", ""), outdir = here::here("Outputs/modelAss/")) 
+  ## testing ##
+  # name = "test1"; mo = d_ri; dat = hB_; accumulate = FALSE; cont = NULL; categ = 'holc_grade'; trans = 'none'; show_base = TRUE; show_binned = FALSE; show_reqq = TRUE; show_temporal = TRUE; show_temporal_grouped = NULL; show_spatial = TRUE; lat_var = 'lat'; lon_var = 'lon'; PNG = FALSE;  width_ = 10; height_ = 5; n_col = 6; n_row = NULL; wrap_title = FALSE; wrap_width = 100; outdir = 'Output/Model_ass/'
+  
+  ## model frame vs data — alignment check ##
+   if (nrow(dat) != length(residuals(mo))) {
+      stop(sprintf("m_ass ERROR: nrow(dat)=%d but model has %d rows.",
+                  nrow(dat), length(residuals(mo))))
+    }   
+
+  ## functions and constants ##
+    have     <- function(x) !is.null(x) && length(x) && all(x %in% names(dat))
+    safe_num <- function(x) as.numeric(x)
+    col_neg <- rgb(83, 95, 124, alpha = 100, maxColorValue = 255)
+    col_pos <- rgb(253, 184, 19, alpha = 100, maxColorValue = 255)
+    
+    ### flatten (grp -> coef -> vector) into (grp:coef -> vector)
+    flatten_re <- function(re_list) {
+      out <- list()
+      for (g in names(re_list)) {
+        x <- re_list[[g]]
+        if (is.list(x)) for (c in names(x)) out[[paste(g, c, sep=":")]] <- x[[c]] else out[[g]] <- x
+      }
+      out
+    }
+
+    ### extrat random effets (blups), if present; which`'all' get also slopes
+    get_re_vals <- function(mo, which = "all") {
+      pick_cols <- function(dd) {
+        if (which == "all") {
+          out <- lapply(names(dd), function(col) setNames(dd[[col]], rownames(dd)))
+          names(out) <- names(dd); out
+        } else if (which == "first") {
+          list(setNames(dd[[1L]], rownames(dd)))
+        } else { # "(Intercept)"
+          if ("(Intercept)" %in% names(dd)) list(setNames(dd[["(Intercept)"]], rownames(dd)))
+          else list(setNames(dd[[1L]], rownames(dd)))
+        }
+      }
+
+
+      if (inherits(mo, "lmerMod") || inherits(mo, "merMod")) {
+        re <- lme4::ranef(mo)
+        out <- lapply(re, pick_cols)
+        # flatten one level if 'which' picks single column
+        if (which != "all") out <- lapply(out, `[[`, 1L)
+        return(out)
+
+      } else if (inherits(mo, "glmmTMB")) {
+        re <- glmmTMB::ranef(mo)
+        re <- if (!is.null(re$cond)) re$cond else re[[1L]]
+        out <- lapply(re, pick_cols)
+        if (which != "all") out <- lapply(out, `[[`, 1L)
+        return(out)
+
+      } else if (inherits(mo, "gam")) {  # mgcv::bam
+        beta <- coef(mo); sm <- mo$smooth; out <- list()
+        for (s in sm) if (isTRUE(s$bs %in% "re")) {
+          idx <- s$first.para:s$last.para
+          lev <- levels(mo$var.summary[[s$term]])
+          vals <- beta[idx]; names(vals) <- lev[seq_along(vals)]
+          out[[s$term]] <- vals
+        }
+        return(out)
+      
+      } else if (inherits(mo, "negbin") || inherits(mo, "glm") || inherits(mo, "lm")) {
+      return(list())  
+      } else stop("Unsupported model class.")
+    }
+
+    ### get RE Names only (uniform)
+    get_re_names <- function(mo, which = "all") {
+     re <- get_re_vals(mo, which = which)           # your function
+     if (which == "all") names(flatten_re(re)) else names(re)
+    }
+
+    ### make qq plots for random effects, if present
+    plot_re_qq <- function(mo, which="all") {
+     re <- get_re_vals(mo, which = which)
+     if (!length(re)) return(invisible(NULL))  
+     # flatten if which="all": make names like "grp:coef"
+     if (which == "all") {
+      flat <- list()
+      for (grp in names(re)) {
+        if (is.list(re[[grp]])) {
+          for (coefnm in names(re[[grp]])) {
+            flat[[paste(grp, coefnm, sep=":")]] <- re[[grp]][[coefnm]]
+          }
+        } else flat[[grp]] <- re[[grp]]
+      }
+      re <- flat
+     }
+
+     for (nm in names(re)) {
+      panels_add(local({
+        x <- re[[nm]]         # capture vector
+        ttl <- nm             # capture name
+        function() {          # <-- single closure that actually draws
+          qqnorm(x, main = ttl, col = colour_pt)
+          qqline(x, col = "red")
+        }
+      }))
+     }
+    }
+
+   ### panels (collector + immediate draw switch) ##
+   panels <- list(); .i <- 0L
+   panels_add <- function(fun) {
+      if (accumulate) {
+        .i <<- .i + 1L
+        panels[[.i]] <<- fun
+      } else {
+        fun()
+      }
+      invisible(NULL)
+   }
+  
+  ## get fit, res, and family ##
+    y_obs <- tryCatch(
+      stats::model.response(stats::model.frame(mo)),
+      error = function(e) NULL
+    )
+    if (is.matrix(y_obs) && ncol(y_obs)==2L) y_obs <- y_obs[,1]/rowSums(y_obs) # for binomial response
+    fit <- tryCatch(stats::fitted(mo, type="response"), error=function(e) stats::fitted(mo))
+    res <- tryCatch(stats::residuals(mo, type="pearson"),  error=function(e) stats::residuals(mo))
+    fit <- safe_num(fit); res <- safe_num(res); y_obs <- safe_num(y_obs)
+
+    fam <- tryCatch(tolower(family(mo)$family), error = function(e) NA_character_)
+    is_nb <- grepl("negative binomial|nbinom1|nbinom2", fam) |  inherits(mo, "negbin") # MASS::glm.nb etc.
+    is_pois <- !is_nb && grepl("poisson", fam) # captures "poisson" and "quasipoisson"
+    is_bin  <- !is_nb && !is_pois && grepl("binomial", fam) # captures "binomial", "quasibinomial" but excludes "negative binomial"
+
+    # pretty family label (round NB theta if available)
+      fam_txt <- if (!is.na(fam)) {
+        if (inherits(mo, "negbin") && !is.null(mo$theta)) {
+          paste0("negative binomial(theta: ", round(mo$theta, 2), ")")
+        } else {
+          fam
+        }
+      } else "n/a"
+
+  ## stratified subsample for plotting ##
+  N <- length(fit)
+  idx_plot <- seq_len(N)
+
+  if (!is.null(max_points) && is.finite(max_points) && N > max_points) {
+    n_strata <- 50L
+    brks <- unique(quantile(fit, probs = seq(0, 1, length.out = n_strata + 1),
+                     na.rm = TRUE))
+    
+    if (length(brks) > 2L) {
+      # standard stratified sampling across (length(brks)-1) non-empty bins
+      bin <- cut(fit, brks, include.lowest = TRUE, labels = FALSE)
+
+      n_eff_strata <- length(brks) - 1L
+      per_bin <- ceiling(max_points / n_eff_strata)
+
+      set.seed(5) 
+      idx_plot <- sort(unique(unlist(tapply(idx_plot, bin, function(ii) {
+      if (length(ii) <= per_bin) ii else sample(ii, per_bin)}))))
+
+    } else {
+      # fallback: too little variation in fitted values to stratify
+      # -> simple random sample
+      set.seed(5)
+      idx_plot <- sort(sample(idx_plot, max_points))
+    }
+  }
+
+  fit_s = fit[idx_plot]
+  res_s = res[idx_plot]
+  y_obs_s = y_obs[idx_plot]
+
+
+  ## MAKE PANELS ##
+
+   ### if drawing immediately, open device now  ###
+    if (!accumulate) {
+      
+      base_plots <-
+        (if (show_base) 4 else 0) +                # resid~fit, sqrt|res|, obs~fit, QQ 
+        1 +                          # dispersion panel (always when available)
+        #(if (show_base && !show_binned &&
+        #     !is.null(mo$family) &&
+        #     mo$family$family == "gaussian") 1 else 0) +  # normal QQ only for gaussian;  TODO: perhaps add optional/rough for Poisson/NB
+        (if (show_binned) 2 else 0) + 
+        (if (is_bin) -1 else 0) 
+
+      has_re   <- length(get_re_names(mo)) > 0L
+      rand_plots <- if (show_reqq && has_re) length(get_re_names(mo)) else 0L
+
+      n <- base_plots + rand_plots + 
+          length(cont) + length(categ) +
+          (if (offset) 2 else 0) +
+          (if (show_temporal) 1 else 0) +
+          (if (!is.null(show_temporal_grouped)) 1 else 0) +
+          (if (show_spatial) 5 else 0) # 3 maps + Moran's I panel + semivariogram
+
+      if (n == 0) n <- 1
+      if (is.null(n_row)) n_row <- ceiling(n / n_col)
+
+      if (PNG) {
+      png(paste0(here::here(outdir,name), ".png"), 
+        width = width_, height = height_*n_row, 
+        units="in", res=300
+        ) #res = 150 ok for html
+      par(mfrow = c(n_row, n_col), tcl = -0.08, cex = 0.5, 
+        cex.main = 0.95, mar = c(2, 2, 2, 1), mgp=c(1,0,0),
+        oma = c(1,1,4,1))
+      } else {
+      dev.new(width=width_,height=height_*n_row)
+      par(mfrow = c(n_row, n_col), tcl = -0.08, cex = 0.5, 
+      cex.main = 0.95, mar = c(2, 2, 2, 1), mgp=c(1,0,0), 
+      oma = c(1,1,2,1))
+      }
+    }
+
+
+  ### fitted vs residuals ###
+    if (show_base) {
+      # patterns/funnel shapes → hints at over/underdispersion or mean-variance misfit
+      panels_add(function() {    
+        plot(fit_s, res_s,
+            xlab = "Fitted (response)",
+            ylab = "Pearson residuals",
+            main = "Pearson residuals vs fitted",
+            pch  = 16, col  = colour_pt
+          )#scatter.smooth(fit,res,col=colour_pt, xlab="Fitted (response)", ylab="Pearson residuals", main="Pearson residuals vs fitted")
+          ok <- is.finite(fit) & is.finite(res)
+          lines(lowess(fit[ok], res[ok]), lwd = 1.2) # smoother on full data
+          abline(h=0, lty=2, col ='red')
+        })
+
+      # highlights non-constant residual spread with μ
+      panels_add(function() {  
+        plot(fit_s, sqrt(abs(res_s)),
+            xlab = "Fitted (response)",
+            ylab = "Sqrt(|Pearson res|)",
+            main = "Sqrt(|res|) vs fitted",
+            pch  = 16, col  = colour_pt
+          ) # scatter.smooth(fit,sqrt(abs(res)), col=colour_pt, xlab="Fitted (response)", ylab="Sqrt(|Pearson res|)", main="Sqrt(|res|) vs fitted")
+          ok <- is.finite(fit) & is.finite(res)
+          lines(lowess(fit[ok], sqrt(abs(res[ok]))), lwd = 1.2) # smoother on full data
+          abline(h=0, lty=2, col ='red')
+        })  
+    }
+
+    if (show_base && !is_pois && !is_nb && !is_bin) {
+      panels_add(function() {
+        plot(fit_s, y_obs_s,
+            xlab = "Fitted (response)",
+            ylab = "Observed",
+            main = "Observed vs fitted",
+            pch  = 16, col = colour_pt)
+        abline(0, 1, lty = 2, col = "red")
+        ok <- is.finite(fit) & is.finite(y_obs)
+        lines(lowess(fit[ok], y_obs[ok]), lwd = 1.2)
+      })
+    }  
+
+    if (show_binned) {
+      # interpratation: for Poisson/NB counts: systematic deviation from 1:1 or too-wide scatter suggests misspecification or extra structure; for interpretation of effects/predictions, use rates if that’s the scientific quantity
+
+      # panel with equal-count bins for counts
+      panels_add(function() {  
+
+       if (is_bin) { # Binomial / quasibinomial
+
+        # bins on fitted probabilities
+        seq_ = seq(0.05, 0.95, by = 0.1)
+        bins_ = cut(fit, seq(0, 1, by = 0.1), include.lowest = TRUE)
+
+        # bin means & SE 
+        means = tapply(y_obs, bins_, mean)
+        se = tapply(y_obs, bins_, function(x) sd(x)/sqrt(length(x))) # binomial approx: n <- tapply(y, b, length); se <- sqrt(pmax(means * (1 - means) / n, 0)) #
+        
+        plot(fit_s, jitter(y_obs_s, amount=0.05), 
+          xlab = "Fitted values", ylab= "Observed proportion", 
+          col = colour_pt, main="Binned observed vs fitted")
+          abline(0, 1, lty = 2, col = "red")
+          points(seq_, means, pch = 16, col = "orange")
+          segments(seq_, means-2*se, seq_, means+2*se, col = "orange", lwd = 2)
+       
+       } else if (is_pois || is_nb) { # Poisson / NB (incl. glmmTMB, bam NB, glm.nb)
+                                      # For NB, large scatter but no clear bias is a norm; For negbin, large scatter but no clear bias is normal; consistent bias across bins signals poor mean structure.
+ 
+        n_bins <- 10
+        brks   <- unique(quantile(fit, probs = seq(0, 1, length.out = n_bins + 1),
+                          na.rm = TRUE))
+
+        if (length(brks) > 2L) {
+         bins_  <- cut(fit, brks, include.lowest = TRUE)
+
+         obs_mean <- tapply(y_obs, bins_, mean)
+         fit_mean <- tapply(fit,   bins_, mean)
+         se       <- tapply(y_obs, bins_, function(x)
+                            sd(x, na.rm = TRUE) / sqrt(length(x)))
+
+         plot(fit_mean, obs_mean,
+            xlab = "Mean fitted count", ylab = "Mean observed count",
+            main = "Binned observed vs fitted counts",
+            pch = 16, col = "orange")
+         abline(0, 1, lty = 2, col = "red")
+         segments(fit_mean, obs_mean - 2 * se,
+                fit_mean, obs_mean + 2 * se,
+                col = "orange", lwd = 2)
+        } else {
+          ## Fallback: not enough unique fitted values for stable binning ##
+          plot(fit_s, res_s,
+               xlab = "Fitted", ylab = "Residual",
+               main = "Binned plot skipped: low variation in fitted values",
+               col  = colour_pt)
+          abline(h = 0, lty = 2, col = "red")
+        }
+
+       } else {
+       ## Fallback for other families ##
+       plot(fit_s, res_s,
+           xlab = "Fitted", ylab = "Residual",
+           main = paste("Binned plot not defined for", fam_txt),
+           col = colour_pt)
+       abline(h = 0, lty = 2, col = "red")
+       }
+      })
+
+      # zoomed binned plot 
+      panels_add(function() {
+
+        zoom_q <- 0.95  # use central 95% of fitted values
+
+        if (is_bin) {
+
+          q    <- quantile(fit, zoom_q, na.rm = TRUE)
+          idx  <- fit <= q
+          if (!any(idx, na.rm = TRUE)) { idx <- rep(TRUE, length(fit)) }
+
+          # bins on truncated range
+          seq_  <- seq(0.05, 0.95, by = 0.1)
+          bins_ <- cut(fit[idx], seq(0, 1, by = 0.1), include.lowest = TRUE)
+
+          means <- tapply(y_obs[idx], bins_, mean)
+          se    <- tapply(y_obs[idx],  bins_, function(x) sd(x)/sqrt(length(x)))
+
+          idx_s <- fit_s <= q
+
+          plot(fit_s[idx_s], jitter(y_obs_s[idx_s], amount = 0.05),
+               xlab = "Fitted values (zoomed)", ylab = "Observed proportion",
+               col  = colour_pt,
+               main = paste0("Zoomed binned (≤ ", zoom_q * 100, "% fitted)"))
+          abline(0, 1, lty = 2, col = "red")
+          points(seq_, means, pch = 16, col = "orange")
+          segments(seq_,
+                   means - 2 * se,
+                   seq_,
+                   means + 2 * se,
+                   col = "orange", lwd = 2)
+
+        } else if (is_pois || is_nb) {
+
+          q    <- quantile(fit, zoom_q, na.rm = TRUE)
+          idx  <- fit <= q
+          if (!any(idx, na.rm = TRUE)) { idx <- rep(TRUE, length(fit)) }
+
+          n_bins <- 10
+          brks_z <- unique(quantile(fit[idx],
+                             probs = seq(0, 1, length.out = n_bins + 1),
+                             na.rm = TRUE))
+          
+          if (length(brks_z) > 2L) {
+           bins_z <- cut(fit[idx], brks_z, include.lowest = TRUE)
+
+           obs_mean_z <- tapply(y_obs[idx], bins_z, mean)
+           fit_mean_z <- tapply(fit[idx],   bins_z, mean)
+           se_z       <- tapply(y_obs[idx], bins_z, function(x)
+                                 sd(x, na.rm = TRUE) / sqrt(length(x)))
+
+           idx_s <- fit_s <= q
+
+           plot(fit_s[idx_s], y_obs_s[idx_s],
+               xlab = "Fitted count (zoomed)",
+               ylab = "Observed count",
+               main = paste0("Binned observed vs fitted (≤ ", zoom_q * 100, "% fitted)"),
+               pch  = 16, col = colour_pt)
+           abline(0, 1, lty = 2, col = "red")
+           segments(fit_mean_z,
+                   obs_mean_z - 2 * se_z,
+                   fit_mean_z,
+                   obs_mean_z + 2 * se_z,
+                   col = "orange", lwd = 2)
+           points(fit_mean_z, obs_mean_z,
+                 pch = 16, col = "orange")
+          } else {
+            ## Fallback zoom
+            idx_s <- fit_s <= q
+            if (!any(idx_s, na.rm = TRUE)) idx_s <- rep(TRUE, length(fit_s))
+            plot(fit_s[idx_s], res_s[idx_s],
+                 xlab = "Fitted (zoomed)", ylab = "Residual",
+                 main = paste0("Zoomed residuals vs fitted (", zoom_q * 100, "%)"),
+                 col  = colour_pt)
+            abline(h = 0, lty = 2, col = "red")
+          }
+
+        } else {
+
+          ## Fallback zoom: residuals vs fitted in dense region
+          q    <- quantile(fit, zoom_q, na.rm = TRUE)
+          idx  <- fit_s <= q
+          if (!any(idx, na.rm = TRUE)) { idx <- rep(TRUE, length(fit_s)) }
+
+          plot(fit_s[idx], res_s[idx],
+               xlab = "Fitted (zoomed)", ylab = "Residual",
+               main = paste("Zoomed residuals vs fitted (", zoom_q * 100, "%)", sep = ""),
+               col  = colour_pt)
+          abline(h = 0, lty = 2, col = "red")
+        }
+      })
+
+    }
+
+     # TODO: observe the behaviour of the chunk below and perhaps remove QQ if bin model present (and do so likely using family info from mo)
+     #if (show_base & !show_binned) { # noraml QQ use only for Gaussian
+     if (show_base & !is_bin) { 
+      panels_add(function() {  
+         qqnorm(res, main=list("Normal Q-Q Plot: residuals", cex=0.8),col=colour_pt);qqline(res, col = 'red')
+        })
+    }
+
+  ### offset ###
+    if (offset) {
+      off <- tryCatch(
+        stats::model.offset(stats::model.frame(mo)),
+        error = function(e) NULL
+      )
+
+      if (!is.null(off)) {
+
+        # (1) Residuals vs offset (scale used in model)
+        panels_add(local({
+          v  <- as.numeric(off)
+          r0 <- res
+          function() {
+            scatter.smooth(v, r0,
+              xlab = "Offset (linear predictor scale)",
+              ylab = "Pearson residuals",
+              col  = colour_pt,
+              main = "Residuals vs offset"
+            )
+            abline(h = 0, lty = 2, col = "red")
+          }
+        }))
+
+        # (2) Leverage vs offset (if hatvalues exist); interpretation: points with high hatvalues (>2*#_of_parameters/n or >3*#_of_parameters/n) and extreme offset → those combinations can dominate estimation; if plot shows hatvalues (e.g. below 1) in a modest range and no crazy outliers, you’re fine. If most points are clustered and only a few are clearly higher, those few are the ones to inspect (especially if they also have extreme residuals or offset).
+
+        hv <- tryCatch(stats::hatvalues(mo), error = function(e) NULL)
+        if (!is.null(hv)) {
+          panels_add(local({
+            h <- hv
+            v <- as.numeric(off)
+            function() {
+              plot(h, v,
+                xlab = "Leverage (hatvalues)",
+                ylab = "Offset (linear predictor scale)",
+                main = "Leverage vs offset", col = colour_pt
+              )
+            }
+          }))
+        }
+      }
+    }
+  
+  ### random effects ###
+    if (show_reqq) plot_re_qq(mo, which="all")
+   
+  ### fixed effects ###
+   #### continuous
+    if (any(!is.na(cont) & nzchar(trimws(cont)))) {
+      cont  <- trimws(cont)
+      trans <- tolower(if (length(trans)) rep_len(trans, length(cont)) else rep("none", length(cont)))
+
+      for (i in seq_along(cont)) {
+        vname <- cont[i]; if (!vname %in% names(dat)) next
+        if (!is.numeric(dat[[vname]])) next
+
+        v  <- dat[[vname]]
+        tr <- trans[i]; lab <- vname
+        
+        if (tr %in% c("log","ln")) { v[v <= 0] <- NA; lab <- if (tr=="log") paste0("log10(",vname,")") else paste0("ln(",vname,")"); v <- if (tr=="log") log10(v) else log(v) }
+        if (tr == "abs") { v <- abs(v); lab <- paste0("abs(",vname,")") }
+        if (tr == "sin") { v <- sin(v); lab <- paste0("sin(",vname,")") }
+        if (tr == "cos") { v <- cos(v); lab <- paste0("cos(",vname,")") }
+        if (all(is.na(v))) next  
+
+        panels_add(local({
+          vx <- v[idx_plot]; xl <- lab; vn <- vname; r0 <- res_s; 
+          function() {
+            plot(vx, r0,
+                xlab = xl, ylab = "Pearson residuals",
+                main = paste("Residuals vs", vn),
+                pch  = 16, col  = colour_pt
+              )#scatter.smooth(vx, r0, xlab=xl, ylab="Pearson residuals", col=colour_pt, main=paste("Residuals vs", vn))
+            ok <- is.finite(v) & is.finite(res)
+          if (sum(ok) > 1L) lines(lowess(v[ok], res[ok]), lwd = 1.2) # smoother on full data
+            abline(h=0, lty=2, col ='red')
+          }
+        }))
+      }
+    }
+
+   ### categorical ###
+   if (any(!is.na(categ) & nzchar(trimws(categ)))) {
+    for (cat_var in categ) {
+      if (!cat_var %in% names(dat)) next
+      panels_add(local({  
+        cv <- cat_var
+        function() { boxplot(res ~ dat[[cv]], border="grey40", ylab="Pearson residuals", xlab = cv, main=paste("Residuals by", cv)); abline(h=0, lty=2, col="red")}
+      }))
+    }
+   }
+
+  ### autocorrelations ###
+   if(show_temporal){
+     panels_add(function() {  
+      acf(res, type="p", ylab = "Partial series residual (PACF)", main="Temporal autocorrelation")
+     })
+   }
+
+   if (!is.null(show_temporal_grouped)) { # emulates grouping lightly (can reveal group-level leftover structure); if PACF shows decay, but the group-level PACF is flat → the apparent decay comes from pooled residuals across groups, not true within-group autocorrelation
+    g  <- dat[[show_temporal_grouped]]
+    ok <- !is.na(g) & !is.na(res)         
+    by <- aggregate(res[ok], list(grouping = g[ok]), mean) #  mean residual per grouping variable
+    nn <- aggregate(res[ok], list(grouping = g[ok]), length)  # sizes
+
+    o  <- order(by$grouping)
+    m  <- by$x[o]
+    n  <- nn$x[o]
+    z  <- m * sqrt(n / max(n)) # variance-stabilized means
+
+    panels_add(local({
+      zz <- z; yl <- paste("PACF of", show_temporal_grouped, "mean residuals (weighted)")
+      function() { pacf(zz, main="Temporal autocorrelation across groups", ylab = yl)}
+    }))
+   }
+
+   if(show_spatial && have(c(lon_var, lat_var))) {  
+
+      spdata <- data.table(resid = res_s, x = dat[[lon_var]][idx_plot], y = dat[[lat_var]][idx_plot])
+      spdata[ , col := ifelse(resid < 0, col_neg, col_pos)]
+      cex_vals <- c(1, 1.5, 2, 2.5, 3)
+      spdata[, cex := as.numeric(cut(abs(resid), 5, labels = cex_vals))]
+      
+      x  <- dat[[lon_var]]
+      y  <- dat[[lat_var]]
+      ok <- is.finite(x) & is.finite(y) & is.finite(res)
+      coords_ok <- cbind(x[ok], y[ok])
+
+      # tiny jitter for exact duplicates to satisfy knearneigh / variogram
+      dup <- duplicated(coords_ok)
+      if (any(dup)) {
+        eps <- sqrt(.Machine$double.eps)
+        n_dup <- sum(dup)
+        coords_ok[dup, ] <- coords_ok[dup, ] +
+          matrix(runif(2L * n_dup, -eps, eps), ncol = 2L)
+      }
+
+      panels_add(function() { 
+       plot(spdata$x, spdata$y, col = spdata$col, cex = spdata$cex, pch = 16, main = "Spatial distribution of residuals", xlab = "longitude", ylab = "latitude")
+       legend("topleft", pch=16, cex=0.8, legend=c('<0','>=0'), col=c(col_neg,col_pos))
+      })
+
+      panels_add(function() { 
+       spdata_neg = spdata[resid<0]  
+       plot(spdata_neg$x, spdata_neg$y, col = spdata_neg$col, cex = spdata_neg$cex, pch = 16, main = "Spatial distribution of residuals (<0)", xlab = "longitude", ylab = "latitude")
+      })
+      
+      panels_add(function() {    
+       spdata_pos = spdata[resid>=0]  
+       plot(spdata_pos$x, spdata_pos$y,col=spdata_pos$col, cex=spdata_pos$cex, pch= 16, main=list('Spatial distribution of residuals (>=0)', cex=0.8), xlab = "longitude", ylab = "latitude")
+      })
+
+      panels_add(function() {# Moran's I summary panel
+          plot.new()
+          box()
+          title("Spatial autocorrelation (Moran's I)")
+          
+          if (!requireNamespace("spdep", quietly = TRUE)) {
+            text(0.05, 0.8, adj = 0,
+                 "Package 'spdep' not available.\nSkipping Moran's I.")
+            return(invisible())
+          }
+
+          if (sum(ok) < 10L) {
+            text(0.05, 0.8, adj = 0, 
+              "Too few valid points for Moran's I.") 
+            return(invisible())
+          }
+          
+          # k-NN weights; robust to irregular sampling
+          mm <- tryCatch({
+            nb <- spdep::knearneigh(coords_ok, k = 4) |>
+                  spdep::knn2nb()
+            lw <- spdep::nb2listw(nb, style = "W")
+            spdep::moran.test(res[ok], lw, na.action = na.exclude)
+          }, error = function(e) NULL)
+          
+          if (is.null(mm)) {
+            text(0.05, 0.8, adj = 0,
+                "Moran's I failed (neighbors).\nCheck coordinates.")
+            return(invisible())
+          }
+          
+          Ival <- unname(mm$estimate[["Moran I statistic"]])
+          pval <- mm$p.value
+          
+          text(0.05, 0.8, adj = 0, labels = sprintf("Moran's I: %.3f", Ival))
+          text(0.05, 0.7, adj = 0, labels = sprintf("p-value:   %.3g", pval))
+          text(0.05, 0.5, adj = 0, labels = "I ≈ 0 & ns:\nno strong global spatial autocorrelation")
+          text(0.05, 0.3, adj = 0, labels = "|I| large & sig.:\n consider spatial structure")
+      })
+         
+      panels_add(function() { ## Residual semivariogram
+          if (!requireNamespace("gstat", quietly = TRUE) ||
+              !requireNamespace("sp", quietly = TRUE)) {
+            plot.new()
+            box()
+            title("Residual semivariogram")
+            text(0.05, 0.8, adj = 0,
+                 "Need 'gstat' + 'sp'.\nSkipping semivariogram.")
+            return(invisible())
+          }
+          
+          if (sum(ok) < 20L) {
+            plot.new()
+            box()
+            title("Residual semivariogram")
+            text(0.05, 0.8, adj = 0,
+                 "Too few valid points\nfor stable semivariogram.")
+            return(invisible())
+          }
+          
+          sdat <- data.frame(lon = coords_ok[,1], lat = coords_ok[,2], res = res[ok])
+          sp::coordinates(sdat) <- ~ lon + lat
+          
+          plot(gstat::variogram(res ~ 1, sdat), main = "Residual semivariogram", col = colour_pt, cex = 16)
+      })
+  
+    }
+
+
+  ### Pearson dispersion text panel ###
+  # note: for standard lm/Gaussian GLM with estimated σ², the Pearson dispersion is essentially the same as the residual variance estimate, so ≈1 by construction
+  disp <- NA_real_
+
+   df_resid <- tryCatch(stats::df.residual(mo), error = function(e) NA_real_) 
+   if (!is.null(res) &&
+      is.finite(df_resid) &&
+      df_resid > 0) {
+    disp <- sum(res^2, na.rm = TRUE) / df_resid
+   }
+
+   if (!is.na(disp)) {
+    panels_add(local({
+      d   <- disp
+      function() {
+        plot.new()
+        box()
+        title("Dispersion summary")
+        usr <- par("usr")  # x1 x2 y1 y2
+        x0  <- usr[1] + 0.06 * (usr[2] - usr[1])
+        y0  <- 0.80
+        text(x0, y0, adj = 0, labels = paste0("Family: ", fam_txt))
+        text(x0, y0 - 0.20, adj = 0,
+             labels = paste0("Pearson dispersion: ", signif(d, 3)))
+        text(x0, y0 - 0.30, adj = 0, labels = "\u22481: ok")
+        text(x0, y0 - 0.35, adj = 0, labels = ">>1 (e.g. > 5–10): overdispersion") # means remaining overdispersion, suggesting missing structure or misfit even after modeling NB
+        text(x0, y0 - 0.40, adj = 0, labels = "<<1: underdispersion")         
+      }
+    }))
+  }
+  
+  ### title ###
+     if (!accumulate) {
+      mc <- tryCatch({if (isS4(mo)) slot(mo, "call") else mo$call},
+        error = function(e) mo$call
+      )
+      
+      link_txt <- tryCatch(family(mo)$link,    error = \(e) NA_character_)
+      disp_txt <- tryCatch({cl <- getCall(mo)
+        if (!is.null(cl$dispformula)) {
+          paste("dispersion:", paste(deparse(cl$dispformula), collapse = " "))
+        } else { NULL}
+      }, error = function(e) NULL)
+      
+      off_txt <- if (offset) {
+        tryCatch({
+          mf  <- stats::model.frame(mo)
+          off <- stats::model.offset(mf)
+          if (!is.null(off)) {
+            cl <- getCall(mo)
+            off_expr <- NULL
+            if (!is.null(cl$formula)) {
+              f_chr <- paste(deparse(cl$formula), collapse = " ")
+              if (grepl("offset\\(", f_chr)) {
+                off_expr <- sub(".*offset\\(([^)]*)\\).*", "\\1", f_chr)
+              }
+            }
+            paste0("offset: ", if (!is.null(off_expr)) paste0(off_expr,')') else "present")
+          } else { NULL}
+        }, error = function(e) NULL)
+      } else {NULL}
+
+      main_txt <- tryCatch(
+       paste0(
+        name, " model check:\n",
+        deparse(mc[[1L]]),
+        "(", paste(deparse(mc[[2L]]), collapse = " "), ")\n", 
+        if (!is.na(fam_txt)) paste0('family: ', fam_txt) else "", 
+        if (!is.na(link_txt)) sprintf(" (%s link)", link_txt) else "", 
+        if (!is.null(off_txt)) paste0("; ", off_txt) else "", 
+        if (!is.null(disp_txt)) paste0("; ", disp_txt) else ""
+       ),
+       error = function(e)  paste0(name, " model check")
+      )
+
+      if (wrap_title) {
+        title_text <- strwrap(main_txt, width = wrap_width) 
+        mtext(paste(title_text, collapse = "\n"), side = 3, line = 1, cex = 0.5, outer = TRUE, col = 'red2')
+        } else {
+          mtext(main_txt, side = 3, line = 1, cex = 0.5, outer = TRUE, col = 'red2')
+        }
+      if (PNG) dev.off()
+     } # option for accumulate not prepared
+}
+
 # 3a. load authors' data for HOLC comparison (uses code from the authors' 05_paper_1_analyses_R4.Rmd)
-  holc <- read_csv('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'
+  holc <- read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv')
                    , col_select = c(id : area_holc_km2
                                     , holc_tot_pop
                                     , msa_GEOID : msa_total_popE
                                     , msa_gini))
   birds_records <- 
-    read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_sum_bird_obs_by_holc_id_1933_2022.csv') |> 
+    read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_sum_bird_obs_by_holc_id_1933_2022.csv')) |> 
     dplyr::mutate(id = str_remove(id, '_Aves_all_observations')) |> 
     dplyr::select(id, records = N_samples)
   
   birds_completeness <-
-    read_csv('original_paper/Data/Biodiv_Greeness_Social/bird_completeness_HOLC_cities_2022_R1.csv') |> 
+    read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/bird_completeness_HOLC_cities_2022_R1.csv')) |> 
     dplyr::select(id, completeness = Completeness) |> 
     tidylog::mutate(id = ifelse(id == 'VA_Roanoke_B2\\r\\n2_B_9289', 'VA_Roanoke_B2\r\n2_B_9289', id))
   
   birds_source <- 
-    read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv') |> 
+    read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv')) |> 
     dplyr::mutate(id = str_remove(id, '_Aves_all_observations')) |> 
     dplyr::select(id, records = N_samples, type = Collection_code) |> 
     pivot_wider(id_cols = id, names_from = type, values_from = records)
   
-  clim <- read_csv('original_paper/Data/Biodiv_Greeness_Social/climatic_data_cities.csv'
+  clim <- read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/climatic_data_cities.csv')
                    , col_select = c(  -'...1'
                                     , mean_temp_c = mean_temp
                                     , mean_precip_mm = mean_precip)
                    )
-  green <- read_csv('original_paper/Data/Biodiv_Greeness_Social/NDVI_unique_ID_updated.csv') %>% 
+  green <- read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/NDVI_unique_ID_updated.csv')) %>% 
         dplyr::mutate(ndvi = ifelse(is.na(ndvi), median(.$ndvi, na.rm = TRUE), ndvi)) |> # interpolated missing
         dplyr::select(id, ndvi)
         
-  pad <- read_csv('Data/NDVI_PAD_unique_ID.csv'#'original_paper/Data/Biodiv_Greeness_Social/NDVI_PAD_unique_ID.csv' 
+  pad <- read_csv(here::here('Data/NDVI_PAD_unique_ID.csv')#'original_paper/Data/Biodiv_Greeness_Social/NDVI_PAD_unique_ID.csv' 
                  , col_select = c(id, pct_pa = percent_pa))
   # combine
   comb <- 
@@ -540,11 +1325,11 @@ lab_log_plus_pct <- function(x) sprintf("%.2f\n(%+d%%)", x, round((exp(x)-1)*100
   h[holc_grade%in%'D', holc_grade_num:=4]
 
   # add lat lon
-  latlon = fread('Data/MaPe/DAT_obs_year_polygon.csv', select = c("id", "lat", "lon"))|> unique() # ❗ we extracted polygon lat lon from RData files of observations; 943 polygons were missing lat/lon (had no observations) and the authors' shape files (holc_ad_data.shp) is missing these polygons (contains only polygons where birds were observed); as cities contain many polygons with known lat/lon, we used the mean of available polygon lat/lon within city_state as a reasonable fallback for missing polygons in the same city. It preserves city-level spatial context.
+  latlon = fread(here::here('Data/MaPe/DAT_obs_year_polygon.csv'), select = c("id", "lat", "lon"))|> unique() # ❗ we extracted polygon lat lon from RData files of observations; 943 polygons were missing lat/lon (had no observations) and the authors' shape files (holc_ad_data.shp) is missing these polygons (contains only polygons where birds were observed); as cities contain many polygons with known lat/lon, we used the mean of available polygon lat/lon within city_state as a reasonable fallback for missing polygons in the same city. It preserves city-level spatial context.
   h = latlon[h, on = "id"] 
 
 # 3b. load authors' temporal data
-t = fread('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv') #tt = fread('Data/from_script_04/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
+t = fread(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')) #tt = fread('Data/from_script_04/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(t) <- c('year','holc_grade', 'Sum')
 
@@ -554,7 +1339,7 @@ tt = tt[order(holc_grade,year)]
 
 # add area per holc grade (as the authors used two ways to calculate this, we test both, but then use only the (a) as that has the correct overal area per holc grade
   # a)
-  holc_a <- fread('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv')
+  holc_a <- fread(here::here('original_paper/Data/Biodiv_Greeness_Social/soc_dem_max_2022_03_12 17_31_11.csv'))
 
   holc_area_sum_a = holc_a[, list(sum_area_holc_km2 = sum(area_holc_km2)), holc_grade]
   holc_area_sum_a_dt = data.table(holc_area_sum_a)  
@@ -563,7 +1348,7 @@ tt = tt[order(holc_grade,year)]
       #  sum_area_holc_km2  : num [1:4] 1279 2712 5179 3280
 
   # b) copy of the L54-65 of 04_R4_uneven_biodiversity_data_2023.R, with MaPe changed folder path
-  holc_b <- suppressWarnings(sf::st_read('Data/holc_ad_data.shp', quiet = TRUE) %>% #MaPe changed folder path 
+  holc_b <- suppressWarnings(sf::st_read(here::here('Data/holc_ad_data.shp'), quiet = TRUE) %>% #MaPe changed folder path 
       sf::st_cast('POLYGON') %>% # IMPORTANT
       dplyr::filter(!sf::st_is_empty(.)) %>% 
       sf::st_make_valid(.) %>% 
@@ -607,9 +1392,9 @@ dispar = round((((tta[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 
 # 4. load temporal data for year, HOLC grade, neighbourhood (polygon) generated by us (contains only A, B, C, D)
 if(recreate_data==TRUE){
-  source('R/rev_Dat_temporal_trend_v2.R')
+  source(here::here('R/rev_Dat_temporal_trend_v2.R'))
 }else{
-  d = fread('Data/MaPe/DAT_obs_year_polygon.csv')
+  d = fread(here::here('Data/MaPe/DAT_obs_year_polygon.csv'))
 }
 # Ensure treatment coding with D as baseline (IMPORTANT)
 options(contrasts = c("contr.treatment", "contr.poly"))
@@ -617,6 +1402,14 @@ d[, holc_grade_D := factor(holc_grade, levels = c("D","B","C","A"))]
 
 # sampling density
 d[, sampling_density:=sum_bird_obs/area_holc_km2]
+
+# shorten the city-state names
+d[, state_city := paste(state, substr(city, 1, 7), sep =', ')]
+d[nchar(state_city)>11, state_city:=paste0(state_city, '.') ]
+d = d[ order(state,city)]
+
+# offset sampling density to allow for log of zero values
+d[, sampling_density_shifted := sampling_density + 0.1]
 
 # subset
 d00 = d[year >= 2000 & year <= 2020]
@@ -666,13 +1459,13 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #'  
 #' This model resambles a model described in the Method, i.e. model (6) above, but with essential nuance: two random slopes are fitted within metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents Gini index of household income inequality at the level of metropolitan area (having same n as metropolitan area). Given that `msa_gini` has the same number of levels as metropolitan are, `msa_gini` cannot be fitted as random slope within metropolitan area, i.e. the model is misspecified. The model sets for the other two responses suffer from similar issues (e.g. `msa_medhhincE` random slope is not defined in the main text and has lower number of unique values thne the metropolitan area within which it was fitted; similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations)).  
 #'  
-#' The script contains 10 - 12 models for sampling density and 10 models for sampling completeness. The authors nowhere justify the need for specifying their complex random structures and comparing so many models. TODO: Peto please add bibtext citation for the 5-8 to the Resources/_bib.bib and here add those as you see for Akaike2025 below.  
+#' The script contains 10 - 12 models for sampling density and 10 models for sampling completeness. The authors nowhere justify the need for specifying their complex random structures and comparing so many models. TODO: Peto please add bibtext citation for the 5-8.  
 #' <br>
-#' **Second**, the authors compared  models within each set (i.e. for each response) and selected the best one using Akaike information criterion (AIC) [@Akaike2025], a method that is the most robust only if the compared models have the same random effect structure TODO:Peto add citation 10 here). However, the authors compared models differing in both fixed and random effects, a practice advided against TODO:Peto again add citations, and making such comparison invalid. 
+#' **Second**, the authors compared  models within each set (i.e. for each response) and selected the best one using Akaike information criterion (AIC) [@Akaike2025], a method that is the most robust only if the compared models have the same random effect structure [@verbyla2019]. However, the authors compared models differing in both fixed and random effects, a practice advided against [@zuur2009][@greven2010][@vaida2005]. 
 #'  
-#' We believe that the authors should have fitted one complex model that is controlled for all discussed variables as well as non-indepence of data points. Their data with n around 9,000 neighbourhoods and clear data structure allows that. If in doubt, fitting a simpler model and comparing its estimates witht the complex one would suffice. Such practice reduces the risk of reporting spurious effects TODO:Peto cit.
+#' We believe that the authors should have fitted one complex model that is controlled for all discussed variables as well as non-indepence of data points. Their data with n around 9,000 neighbourhoods and clear data structure allows that. If in doubt, fitting a simpler model and comparing its estimates witht the complex one would suffice. Such practice reduces the risk of reporting spurious effects [@forstmeier2011][@whittingham2006].
 #' 
-#' **Finally**, the authors do not describe in their Methods, nor provide in their scripts, any checks of model assumptions. This is problematic as some of their models fit poorly the data, do not sufficintly control for non-independence of data points (spatial and/or temporal), or suffer from heteroscedasticity TODO:Peto cit, which influences statistical clarity (PETO cit).
+#' **Finally**, the authors do not describe in their Methods, nor provide in their scripts, any checks of model assumptions. This is problematic as some of their models fit poorly the data, do not sufficintly control for non-independence of data points (spatial and/or temporal), or suffer from heteroscedasticity TODO:Peto cit, which influences statistical clarity [@zuur2010][@ives2021][@knief2021].
 #'  
 #' Here, we respecified the model set for each response, checked the model assumptions (and if needed respecified the model/s) and compared the model estimates. We include plausible models from the authors' set and included further two models either with HOLC grade as a single fixed effect (simple models) or including also all other continues control variables (discussed by the authors) as fixed effects (NDVI, open space (%), population density (per km²), mean temperature and mean precipitation; full model). For our simple and full modle we varied the random structure (i) to mirror the authors' logic, but using only discussed and meaningful variables (e.g. excluding random slopes with the same number of levels as the corresponding random intercept), and to show whether estimates and their clarity change if we (ii) account for non-independence of data points, and (iii) if needed model the heteroscedascity. 
 #' 
@@ -772,6 +1565,45 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         family = binomial(link = "logit"),
         control = glmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5)))   
+
+  # model ass
+  if(recompute_diag){
+  m_ass(name = 'Fig_1a', mo = samp_d_binary_holc, dat = h,  
+      categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) # Panels 1 and 4 together show systematic structure (not random scatter), implying that although the dispersion summary (~0.87) suggests no overdispersion, the mean–variance relationship isn’t fully captured—possibly due to missing covariates or inadequate functional form (e.g. nonlinear effect of holc_grade).
+
+  m_ass(name = 'Fig_1b', mo = m0, dat = h, 
+        categ = 'holc_grade', show_binned = TRUE, PNG = TRUE)  
+
+  m_ass(name = 'Fig_1c', mo = samp_d_binary_holc_rirs, dat = h, 
+        categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) 
+
+  m_ass(name = 'Fig_1d', mo = m1, dat = h, 
+        categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) 
+
+  m_ass(name = 'Fig_1e', mo = m1b, dat = h, 
+        categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', show_binned = TRUE, PNG = TRUE) 
+        # spatial smoother (s(lon, lat, bs = "gp"))) in glmmTMB refit did not improve the residuals suggesting  that whatever clustering remains is weak or idiosyncratic rather than a systematic spatial process (random structure already absorbs most spatial correlation); 
+        # library(spdep); nb <- knearneigh(coords, k = 4) |> knn2nb(); lw <- nb2listw(nb, style = "W"); moran.test(resid(m1b), lw); I ≈ −0.0095, p ≈ 0.96 → no positive spatial autocorrelation; if anything a tiny (practically irrelevant) negative signal. 
+        #library(gstat); library(sp); h_sp <- h; coordinates(h_sp) <- ~lon + lat; vgm_mod <- variogram(resid(m1b) ~ 1, h_sp); plot(vgm_mod, main = "Residual semivariogram"); flat over distance; no sharp rise near 0, no clear sill/range structure = spatial clustering is not an issue
+
+  m_ass(name = 'Fig_1f', mo = m2, dat = h, 
+        categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', show_binned = TRUE, PNG = TRUE) 
+
+  m_ass(name = 'Fig_1g', mo = m1p, dat = h, 
+        categ = 'holc_grade', cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), trans = c('log','none','none','none','none','none'), show_binned = TRUE, PNG = TRUE) 
+
+  m_ass(name = 'Fig_1h', mo = m2p, dat = h, 
+        categ = 'holc_grade',
+        cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
+        trans = c('log','none','none','none','none','none'), 
+        show_binned = TRUE, PNG = TRUE)   
+
+  m_ass(name = 'Fig_1i', mo = m3p, dat = h, 
+        categ = 'holc_grade', 
+        cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
+        trans = c('log','none','none','none','none','none'), 
+        show_binned = TRUE, PNG = TRUE) 
+  }
 
   # PLOT for logit
     # add models to a list
@@ -921,6 +1753,43 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         control = lmerControl(optimizer = "bobyqa",
                             optCtrl = list(maxfun = 2e5))
         )   
+  # model ass
+  if(recompute_diag){
+  m_ass(name = 'gaus_Fig_1a', mo = samp_m0_g, dat = h,  
+      categ = 'holc_grade',  PNG = TRUE) 
+
+  m_ass(name = 'gaus_Fig_1b', mo = m0_g, dat = h, 
+        categ = 'holc_grade',  PNG = TRUE)  
+
+  m_ass(name = 'gaus_Fig_1c', mo = samp_m1_g, dat = h, 
+        categ = 'holc_grade',  PNG = TRUE) 
+
+  m_ass(name = 'gaus_Fig_1d', mo = m1_g, dat = h, 
+        categ = 'holc_grade', PNG = TRUE) 
+
+  m_ass(name = 'gaus_Fig_1e', mo = m1b_g, dat = h, 
+        categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', 
+        PNG = TRUE) 
+        
+  m_ass(name = 'gaus_Fig_1f', mo = m2_g, dat = h, 
+        categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', 
+        PNG = TRUE) 
+
+  m_ass(name = 'gaus_Fig_1g', mo = m1p_g, dat = h, 
+        categ = 'holc_grade', cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), trans = c('log','none','none','none','none','none'),  PNG = TRUE) 
+
+  m_ass(name = 'gaus_Fig_1h', mo = m2p_g, dat = h, 
+        categ = 'holc_grade',
+        cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
+        trans = c('log','none','none','none','none','none'), 
+        PNG = TRUE)   
+
+  m_ass(name = 'gaus_Fig_1i', mo = m3p_g, dat = h, 
+        categ = 'holc_grade', 
+        cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
+        trans = c('log','none','none','none','none','none'), 
+      PNG = TRUE)
+  }
 
   # PLOT for gaussian
     # add models to a list
@@ -1020,7 +1889,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' 
 #' In sum, the authors’ original results (red) appear less extreme (closer to zero), suggesting that their omission of control variables conflated spatial or ecological bias with HOLC category.
 
-# ALTERNATIVE WORDING for the above three paragraphs, e.g. for some summary: Estimates of sampling probability relative to HOLC grade A were consistently negative for grades B–D across all model specifications and error structures, confirming the stability of inference despite non-normal data (cf. Knief & Forstmeier 2021). Accounting for log(area) and other covariates slightly increased the A-D contrast and made it more stable, indicating robustness to model complexity. 
+#' ALTERNATIVE WORDING for the above three paragraphs, e.g. for some summary: Estimates of sampling probability relative to HOLC grade A were consistently negative for grades B–D across all model specifications and error structures, confirming the stability of inference despite non-normal data (cf. Knief & Forstmeier 2021). Accounting for log(area) and other covariates slightly increased the A-D contrast and made it more stable, indicating robustness to model complexity. 
 #' 
 #' <br>
 #' 
@@ -1091,6 +1960,43 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
                                 optCtrl = list(maxfun = 2e5))
             )         
     
+    # model ass
+    if(recompute_diag){
+      m_ass(name = 'Fig_2a', mo = d_ri, dat = hB_,  
+            categ = 'holc_grade',  PNG = TRUE) 
+
+      m_ass(name = 'Fig_2b', mo = mB0, dat = hB_, 
+            categ = 'holc_grade',  PNG = TRUE)  
+
+      m_ass(name = 'Fig_2c', mo = d_rirs, dat = hB_, 
+            categ = 'holc_grade',  PNG = TRUE) 
+
+      m_ass(name = 'Fig_2d', mo = mB1, dat = hB_, 
+            categ = 'holc_grade', PNG = TRUE) 
+
+      m_ass(name = 'Fig_2e', mo = mB2, dat = hB_, 
+            categ = 'holc_grade', PNG = TRUE) 
+
+      m_ass(name = 'Fig_2f', mo = d_fe_rirs, dat = hB_, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km'), 
+            PNG = TRUE) 
+            
+      m_ass(name = 'Fig_2g', mo = mB1p, dat = hB_, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
+            PNG = TRUE) 
+
+      m_ass(name = 'Fig_2h', mo = mB2p, dat = hB_, 
+            categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
+            PNG = TRUE) 
+
+      m_ass(name = 'Fig_2i', mo = mB3p, dat = hB_, 
+            categ = 'holc_grade',
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
+            PNG = TRUE)
+    }
+
     # add models to a list
     models_B <- list(
     d_ri      = d_ri,
@@ -1248,6 +2154,43 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
                                 optCtrl = list(maxfun = 2e5))
             )  # Model showed a boundary (singular) fit due to limited within-city grade variation, meaning that effective RE structure is simpler; results were robust to using numeric HOLC grade as slope, which run wihtout issues and produces similar results. For consistency with the rest, we keep the current model.  
     
+    # model ass
+    if(recompute_diag){
+      m_ass(name = 'a_Fig_2a', mo = d_ri_a, dat = hB,  
+            categ = 'holc_grade',  PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2b', mo = mB0_a, dat = hB, 
+            categ = 'holc_grade',  PNG = TRUE)  
+
+      m_ass(name = 'a_Fig_2c', mo = d_rirs_a, dat = hB, 
+            categ = 'holc_grade',  PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2d', mo = mB1_a, dat = hB, 
+            categ = 'holc_grade', PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2e', mo = mB2_a, dat = hB, 
+            categ = 'holc_grade', PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2f', mo = d_fe_rirs_a, dat = hB, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km'), 
+            PNG = TRUE) 
+            
+      m_ass(name = 'a_Fig_2g', mo = mB1p_a, dat = hB, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
+            PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2h', mo = mB2p_a, dat = hB, 
+            categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), offset = TRUE,
+            PNG = TRUE) 
+
+      m_ass(name = 'a_Fig_2i', mo = mB3p_a, dat = hB, 
+            categ = 'holc_grade',
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
+            PNG = TRUE)   
+    }
+
     # add models to a list
     models_B_a  <- list(
     d_ri_a       = d_ri_a ,
@@ -1395,6 +2338,43 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
             family = nbinom2(),
             data = hB
             )  
+    # model ass
+    if(recompute_diag){
+      m_ass(name = 'r_Fig_2a', mo = d_ri_r, dat = hB,  
+        categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE,      
+        PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2b', mo = mB0_r, dat = hB, 
+            categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE)  
+
+      m_ass(name = 'r_Fig_2c', mo = d_rirs_r, dat = hB, 
+            categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2d', mo = mB1_r, dat = hB, 
+            categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE,  PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2e', mo = mB2_r, dat = hB, 
+            categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2f', mo = d_fe_rirs_r, dat = hB, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km'), 
+            offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+            
+      m_ass(name = 'r_Fig_2g', mo = mB1p_r, dat = hB, 
+            categ = 'holc_grade', 
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
+            offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2h', mo = mB2p_r, dat = hB, 
+            categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'),
+            offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+
+      m_ass(name = 'r_Fig_2i', mo = mB3p_r, dat = hB, 
+            categ = 'holc_grade',
+            cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
+            offset = TRUE, show_binned = TRUE, PNG = TRUE) 
+    }
 
     # add models to a list
     models_B_r  <- list(
@@ -1435,7 +2415,7 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
         "HOLC grade + log area km² offset + NDVI + protected area % + population density + temperature * precipitation + (1 | state) + (HOLC grade | city)"
     )
 
-    # extract TODO: START FIXING HERE and check whether other function to extract glmmTMB exists
+    # extract 
     coef_df_B_r  <- purrr::imap_dfr(models_B_r , ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
 
     coef_df_B_r  <- coef_df_B_r  %>%
@@ -1588,6 +2568,43 @@ mC3p= lmer(completeness~ holc_grade + log(area_holc_km2) +
                          optCtrl = list(maxfun = 2e5))
     )  
 
+# model ass
+if(recompute_diag){
+m_ass(name = 'Fig_3a', mo = c_ri, dat = hC,  
+      categ = 'holc_grade',    
+      PNG = TRUE) 
+
+m_ass(name = 'Fig_3b', mo = mC0, dat = hC, 
+      categ = 'holc_grade', PNG = TRUE)  
+
+m_ass(name = 'Fig_3c', mo = c_rirs, dat = hC, 
+      categ = 'holc_grade', cont = 'area_holc_km2', PNG = TRUE) 
+
+m_ass(name = 'Fig_3d', mo = mC1, dat = hC, 
+      categ = 'holc_grade', cont = 'area_holc_km2', PNG = TRUE) 
+
+m_ass(name = 'Fig_3e', mo = mC2, dat = hC, 
+      categ = 'holc_grade', cont = 'area_holc_km2',PNG = TRUE) 
+
+m_ass(name = 'Fig_3f', mo = c_fe_rirs, dat = hC, 
+      categ = 'holc_grade', 
+      cont = c('ndvi','pct_pa','pop_per_km'), 
+      PNG = TRUE) 
+      
+m_ass(name = 'Fig_3g', mo = mC1p, dat = hC, 
+      categ = 'holc_grade', 
+      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
+      PNG = TRUE) 
+
+m_ass(name = 'Fig_3h', mo = mC2p, dat = hC, 
+      categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), PNG = TRUE) 
+
+m_ass(name = 'Fig_3i', mo = mC3p, dat = hC, 
+      categ = 'holc_grade',
+      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
+      PNG = TRUE)  
+}
+
 # add models to a list
 models_C <- list(
   c_ri      = c_ri,
@@ -1692,7 +2709,8 @@ theme(
 #' ## i. Claim about 35.6% change in disparity 
 #' 
 #' We did not find the code generating the 35.6% claim (Abstract p. 1869 & Results p. 1871), hence could only speculate how this was calculated. Using the authors data on sampling density per year and HOLC grade and calculating the ratio between A/D for 2020 and A/D for 2000 generated a different result (`r dispar`%). This result seems to reflect the one (~40%) from  Fig. 4 legend.
-#' TODO: peto decide whther to use A or B from below or C mix of the two, and D. short version
+#' TODO: peto decide whther to use A or B from below or C mix of the two, and D. short version  
+#' 
 #' A. Across all sensible metrics of sampling effort, disparity between HOLC grades A and D is high throughout 2000–2020, but its temporal trend is not consistently increasing and depends strongly on the aggregation chosen. The authors’ reported 35.6 % increase results from a metric (total observations divided by total HOLC-grade area) that is particularly sensitive to a few high-intensity A-grade hotspots and the shift of sampling effort among a small number of cities. When we use alternative metrics that reflect different mechanisms of sampling (coverage - percentage of sampled polygons, intensity - mean sampling within polygons that were sampled, or effective sampling TODO:PETO Does effective sample size ring a bell? It is "mean sampling across all polygons"and that is perhaps clearer), the magnitude and the direction of change differ, trends are non-linear and none supports a monotonic ∼35 % increase (Fig. X, SX). TODO:Perhaps add here the summary of what is happening in each period (decline in disparity, steep increase and platau or decline).
 #' B. Across all metrics of sampling effort, HOLC grade A neighbourhoods consistently exhibit higher bird-sampling density than grade D neighbourhoods. However, the temporal trend depends strongly on the chosen aggregation. Using the original authors’ metric (total observations divided by total HOLC-grade area), disparity in 2000–2020 appears to rise from ~50–60% to ~120–150%, consistent with their reported 35.6% change. Yet alternative metrics reveal a different and more nuanced pattern. Coverage (the proportion of polygons sampled) shows a decline in disparity over the same period, while intensity among sampled polygons increases only modestly and then stabilises after 2015. When extremely dense sampling hotspots are trimmed (top 0.5% of polygons), the apparent rise in disparity largely disappears. Together, these results indicate that the originally reported 35.6% increase is not a robust temporal signal, but instead arises from a metric that is highly sensitive to rare, high-intensity sampling events in a small subset of A-grade polygons.
 #' 
@@ -1707,9 +2725,9 @@ theme(
 #' In sum, Across all alternative metrics, the magnitude and direction of change differ, and none independently supports a steady “35.6 % increase” in A–D disparity. The authors’ figure arises from one aggregation choice whose behaviour is known to be unstable under heavy-tailed sampling distributions.
 #' 
 
+#'
 #' 
-#' 
-#+ F_X, fig.width = 12.5/2.5, fig.height = 20/2.5
+#+ F_X, fig.width = 8/2.5, fig.height = 22/2.5
 
 # prepare authors' data
 a = tta[holc_grade%in%c('A','D')]
@@ -1832,11 +2850,9 @@ w_int_log_trim[, dispar := 100*((A/D)-1)] # not used ad nearly identical
 
 g3a = ggplot(w_int_log[year>1999 & year<2021], aes(x = year, y = dispar)) + 
   stat_smooth(col = col_all, lwd = 0.5)+ 
-  #stat_smooth(data =  w_int_log_trim[year>1999 & year<2021], aes(x = year, y = dispar), 
-    col = 'red', fill = 'red', lty = 3, lwd = 0.5)+ 
+  #stat_smooth(data =  w_int_log_trim[year>1999 & year<2021], aes(x = year, y = dispar), col = 'red', fill = 'red', lty = 3, lwd = 0.5)+ 
   geom_point() + 
-  #geom_point(data = w_int_log_trim[year>1999 & year<2021], 
-    aes(x = year, y = dispar), col = 'red', cex = 0.5) +   
+  #geom_point(data = w_int_log_trim[year>1999 & year<2021], aes(x = year, y = dispar), col = 'red', cex = 0.5) +   
   labs(subtitle = "Geometric mean sampling density of sampled polygons", y ='Disparity in A relative to D [%]') + 
   theme_light() #TODO decide which heading to use "Relative geometric-mean sampling density (A/D)"
 
@@ -1934,7 +2950,7 @@ left <- (
   plot_layout(ncol = 2, nrow = 4,
               axis_titles = "collect")  
 
-ggsave('Output/Fig_X_v2-trimon2000-2020.png', left, units = 'cm', width = 12.5, height = 20)
+#ggsave('Output/Fig_X_v2-trimon2000-2020.png', left, units = 'cm', width = 12.5, height = 20)
 left
 
 #' <a name="F_X">
@@ -1966,8 +2982,8 @@ g_all_SX = (left | plot_spacer() | right) +
     axis_titles = "collect_x"   # or "collect" if you want y merged when possible
   )
 
-ggsave('Output/Fig_SX.png', g_all_SX, units = 'cm', width = 25, height = 25)
-g_all_SX
+#ggsave('Output/Fig_SX.png', g_all_SX, units = 'cm', width = 25, height = 25)
+g_all_SX; rm(left, right, g_all_SX); invisible(gc()) # clean up
 
 #' <a name="F_SX">
 #' **Figure SX</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents relative percentage difference (two left columns) or absolute difference (two right columns) in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; first row), mean sampling density per HOLC grade and year (second row), proportion of sampled polygons (third row), mean sampling density across sampled polygons (i.e. excluding non-sampled ones; fourth row) and geometric mean in sampling density (fifth row). Dots represent yearly values. Lines represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Color indicates all data (black) or data with top 0.5% trimmed (red). Top row represents the aggregation likely used by the authors to support their claim about 35.6% increase, the other rows the aggregation done by us. Note that the authors' dataset did not contain area per year and HOLC grade; hence, we were unable to compute the median sampling density for their dataset.
@@ -2002,7 +3018,7 @@ geo_mean <- function(x) {
 }
 
 # 1) geometric mean sampling density per city-year-grade
-city_ratio <- d[year>1999 & year<2023, .(ratio_AD = 
+city_ratio <- d10[, .(ratio_AD = 
                   ((geo_mean(sampling_density[holc_grade=="A"]) /
                     geo_mean(sampling_density[holc_grade=="D"])
                     ))),
@@ -2062,7 +3078,7 @@ ggplot(city_summ, aes(x = class, fill = class)) + geom_bar() +
 
 # ARITHMETIC mean alternative
 # 1) geometric mean sampling density per city-year-grade
-city_ratio_ari <- d[year>1999 & year<2023, .(ratio_AD = 
+city_ratio_ari <- d10[ , .(ratio_AD = 
                   ((mean(sampling_density[holc_grade=="A"]) /
                     mean(sampling_density[holc_grade=="D"])
                     ))),
@@ -2229,7 +3245,7 @@ ex_mix =
 # EXPORT
 top = ((g_ari | g_geo) + plot_layout(axis_titles = "collect") ) | g_comp
 bottom = (ex_A | ex_mix | ex_D) + plot_layout(axis_titles = "collect_x")  
-ggsave('Output/Fig_SX2_examples.png', top / bottom,  width = 20, height = 12.5, units = 'cm')
+#ggsave('Output/Fig_SX2_examples.png', top / bottom,  width = 20, height = 12.5, units = 'cm')
 top / bottom
 
 #' <a name="Fig_SX2">
@@ -2252,7 +3268,7 @@ top / bottom
 
 suppressWarnings({ #MaPe added, as well as package specs below
   counts_grade_year <- 
-    readr::read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv',#MaPe changed folder path from read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
+    readr::read_csv(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv'),#MaPe changed folder path from read_csv('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv')
     show_col_types = FALSE   # MaPe added to suppress readr column spec message
     ) |>
     dplyr::filter(holc_grade != 'E') |> 
@@ -2309,7 +3325,7 @@ setnames(holc_area, 'sum_area_holc_km2', 'area_sum')
 
 # prepare the multiplied dataset (chunk of code from `04_R4_uneven_biodiversity_data_2023.R` (L410-20))
 require(plyr) # the package causeing the multiplications
-temporal_trend = read.table("original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv",
+temporal_trend = read.table(here::here("original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv"),
                             header = TRUE,sep = ",")
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(temporal_trend) <- c('Year','holc_grade', 'Sum')
@@ -2415,7 +3431,7 @@ theme(legend.position = 'none', plot.subtitle = element_text(size = 10, colour =
 
 # copy of the L390-430 of 04_R4_uneven_biodiversity_data_2023.R, with changed folder path
 # Load 1933-2022 data
-temporal_trend = read.table('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv', header= T,sep=',')
+temporal_trend = read.table(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_trend_by_time_holc_id_1933_2022.csv'), header= T,sep=',')
 # names(temporal_trend) <- c('Year','holc_grade','Type','holc_polygon_id', 'Sum')
 names(temporal_trend) <- c('Year','holc_grade', 'Sum')
 temporal_trend = temporal_trend %>% dplyr::filter(holc_grade != 'E')
@@ -2558,6 +3574,16 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
 m_density_mul = glm((sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
 m_density_ok = glm((sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
 
+m_ass(name = 'Table_S1a_multiplied_data', mo = m_density_mul, dat = mul[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
+m_ass(name = 'Table_S1a_correct_data', mo = m_density_ok, dat = ok[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
 tab_model(m_density_mul, m_density_ok,  auto.label = T, string.ci='95%CI', title = "Generalized linear model", dv.labels = c("Multiplied # of observations", "Actual # of observations")) # m = lm(log(sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)]); summary(glht(m)) # gives even less clear relationship
 #' ***
 #' 
@@ -2568,6 +3594,16 @@ tab_model(m_density_mul, m_density_ok,  auto.label = T, string.ci='95%CI', title
 
 m_density_mul_ln = glm(log(sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
 m_density_ok_ln = glm(log(sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
+
+m_ass(name = 'Table_S1b_multiplied_data', mo = m_density_mul_ln, dat = mul[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
+m_ass(name = 'Table_S1b_correct_data', mo = m_density_ok_ln, dat = ok[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE) 
 
 tab_model(m_density_mul_ln, m_density_ok_ln,  auto.label = T, string.ci='95%CI', title = "Generalized linear model on ln(sampling density)", dv.labels = c("Multiplied # of observations", "Actual # of observations"))
 #' ***
@@ -2581,6 +3617,16 @@ gam_density_mul = gam(sampling_density ~ Year * holc_grade, data = mul[Year %in%
 
 gam_density_ok = gam(sampling_density ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
 
+m_ass(name = 'Table_S1c_multiplied_data', mo = gam_density_mul, dat = mul[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
+m_ass(name = 'Table_S1c_correct_data', mo = gam_density_ok, dat = ok[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)        
+
 tab_model(gam_density_mul, gam_density_ok, auto.label = T, string.ci='95%CI', title = "Generalized additive model", dv.labels = c("Multiplied # of observations", "Actual # of observations"))
 #' ***
 #' 
@@ -2592,6 +3638,17 @@ tab_model(gam_density_mul, gam_density_ok, auto.label = T, string.ci='95%CI', ti
 gam_density_mul_ln = gam(log(sampling_density) ~ Year * holc_grade, data = mul[Year %in% c(2000:2020)])
 
 gam_density_ok_ln = gam(log(sampling_density) ~ Year * holc_grade, data = ok[Year %in% c(2000:2020)])
+
+m_ass(name = 'Table_S1d_multiplied_data', mo = gam_density_mul_ln, dat = mul[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
+m_ass(name = 'Table_S1d_correct_data', mo = gam_density_ok_ln, dat = ok[Year %in% c(2000:2020)], 
+      categ = 'holc_grade',
+      cont = c('Year'), 
+      PNG = TRUE)  
+
 
 tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%CI', title = "Generalized additive model on ln(sampling density)", dv.labels = c("Multiplied # of observations", "Actual # of observations")) #summary(glht(gam_density_ok_ln)) corrected p-values
 #' 
@@ -2615,9 +3672,19 @@ sum_m_10_nb  <- MASS::glm.nb(
   tt10
 )
 
+m_ass(name = 'Table_S2_all_years', mo = sum_m_nb, dat = tt00, 
+      categ = 'holc_grade_D',
+      cont = c('year'), 
+      PNG = TRUE)  
+
+m_ass(name = 'Table_S2_2010-2020_years', mo = sum_m_10_nb, dat = tt10, 
+      categ = 'holc_grade_D',
+      cont = c('year'), 
+      PNG = TRUE)  
+
 tab_model(sum_m_nb, sum_m_10_nb, auto.label = T, string.ci='95%CI', title = "Negative binomial model on sampling observations with log(area) offset", dv.labels = c("2000 - 2020", "2010 - 2020"))
 
-#+ r_F_Y, fig.width=12*0.393701,fig.height=15*0.393701 
+#+ r_F_Y, fig.width=15*0.393701,fig.height=10*0.393701 
 # plot predictions 2000 - 2020
 # newdata grid
 newD <- CJ(year = 2000:2020, holc_grade_D = unique(tt00$holc_grade))
@@ -2733,35 +3800,7 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
 #' ### Robustness reproducibility
 #' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon and year (i.e. city-specific HOLC-grades and sampling polygon ids; n = `r comma(nrow(d))` polygon-year recors). To visualise the raw data distribution, we created per city plots (Fig. [Z0ab](#F_Z0ab)).
 #' 
-#+ F_Z0a, fig.width = 20/2.5, fig.height = 25/2.5
-gtable_filter_remove <- function (x, name, trim = TRUE){
-  matches <- !(x$layout$name %in% name)
-  x$layout <- x$layout[matches, , drop = FALSE]
-  x$grobs <- x$grobs[matches]
-  if (trim) 
-    x <- gtable_trim(x)
-  x
-}
-# helper to place log10 minor breaks at 2..9 * 10^k
-minor_breaks_log10 <- function(lims) {
-  lo <- floor(log10(lims[1])); hi <- ceiling(log10(lims[2]))
-  as.numeric(outer(1:9, 10^(lo:hi), `*`))
-}
-
-# helper: minor breaks only for >0
-minor_breaks_log10_if0 <- function(lims){
-  hi <- lims[2]; lo <- max(1, lims[1])
-  if (hi <= 1) return(NULL)
-  as.numeric(outer(1:9, 10^(floor(log10(lo)):ceiling(log10(hi))), `*`))
-}
-
-# shorten the city-state names
-d[, state_city := paste(state, substr(city, 1, 7), sep =', ')]
-d[nchar(state_city)>11, state_city:=paste0(state_city, '.') ]
-d = d[ order(state,city)]
-
-# offset sampling density to allow for log of zero values
-d[, sampling_density_shifted := sampling_density + 0.1]
+#+ F_Z0a, fig.width = 7/2.5, fig.height = 13/2.5
 
 # n col for plotting
 x = unique(d$state_city)
@@ -2835,7 +3874,7 @@ grid.draw(g_tr_des_b)#;ggsave('Output/rev_trend-raw_all-data_b.png', g_tr_des_b,
 #'
 #+ F_Z0c, fig.width = 7/2.5, fig.height = 13/2.5
 # summary per D
-drD = dr[holc_grade=='D']
+drD = d[holc_grade=='D'] #untrimmed dr = d[holc_grade=='D' & sampling_density<7000]
 pD = 
  ggplot(drD, aes(x = year, y = sampling_density)) + 
     stat_smooth(aes(group = state_city), se = FALSE, col = holc_pal[4], alpha = 0.2) + 
@@ -2855,7 +3894,7 @@ pD =
     )  #; ggsave('Output/rev_trend-raw_D.png', pD, units = 'cm', width = 7, height = 7)
 
 # summary per A
-drA = dr[holc_grade=='A']
+drA = d[holc_grade=='A'] # d[holc_grade=='A' & sampling_density<7000]
 pA = 
  ggplot(drA, aes(x = year, y = sampling_density)) + 
     stat_smooth(aes(group = state_city), se = FALSE, col = holc_pal[1], alpha = 0.2) + 
@@ -2881,15 +3920,20 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 #' **Figure Z0c</a> | Summarized change in HOLC grade A and D sampling density over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Simple lines represent fits per city, black line with shaded area fits to all data (note that such lines are just visual exploration of data as they are not controlled for pseudoreplication).
 #' <br>  
 #'
-#' We then specified negative binomial mixed-effect models with number of observations as a response, ln-transformed polygon area (km²) as an offset, and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. To accommodate slight heteroskedasticity across HOLC grades and city area, in some models we modelled dispersion as a function of these predictors (`dispformula = ~ holc_grade_D + log(area_holc_km2)`). 
+#' We then specified negative binomial mixed-effect models with number of observations as a response, ln-transformed polygon area (km²) as an offset, and year (continuous) in interaction with HOLC grade (four-level factor) as predictors while controlling for non-independence of data points in the random effects. 
 #' 
-#' We specified 6 models varying in the random effects and compared their estimates for the fixed effect predictors:
+#' We specified five models varying in the random effects and compared their estimates for the fixed effect predictors:
 #'   
 #' (1) Random intercept of state, city within state and unique sampling polygon id.  
-#' (2) Explicitly nested random intecepts of state, city, HOLC grand and unique sampling polygon id.  
+#' (2) Explicitly nested random intecepts of state, city, HOLC grade and unique sampling polygon id.  
 #' (3) Same as (1), but with random slope of year within city. 
 #' (4) Same as (1), but with random slope of year within polygon.  
-#' (5) Same as (2), but with random slope of year.     
+#' (5) Random intercept of sampling polygon id, and random slope of year within nested renadom intecepts of state, city, HOLC grade. Same as (2), but with random slope of year.     
+#' 
+#' Note that for the model (5) we attempted a model (2) with random slope of year, but such random structure was non-identifiable. We thus simplified the random effects to levels where slope variance is identifiable and does not distort fixed-effect estimates, i.e. current (5) model specification.
+#' 
+#' Moreover, to accommodate slight heteroskedasticity across HOLC grades and city area, in some models we modelled dispersion as a function of these predictors (`dispformula = ~ holc_grade_D + log(area_holc_km2)`). However, outputs of such models were nearly identical to the original ones and hence we report only those.  
+#' 
 #' <br>  
 #'  
 #' #### A. Contrasts
@@ -2901,6 +3945,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
   #ggplot(d00, aes(sampling_density))+geom_density() + scale_x_continuous(trans ='log')
 
   # MODELS 2000-2020
+  if(recreate_data==TRUE){
   # 0) model per holc grade
   sum_m_nb  <- MASS::glm.nb(n_obs ~ holc_grade_D*scale(year) + 
               offset(log(sum_area_holc_km2)), 
@@ -2937,23 +3982,62 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
               )
   mbs1D_nb = glmmTMB(sum_bird_obs ~ holc_grade_D*scale(year) + 
               offset(log(area_holc_km2)) +
-              (scale(year)|state/city_state/holc_grade/id),
+              (scale(year)|state/city_state/holc_grade) + (1|id),#(scale(year)|state/city_state/holc_grade/id),
               d00,
               family = nbinom2()
               )
+
+  save(file = here::here('Data/DAT_glmmTMB_NB_2000-2020.Rdata'),
+      sum_m_nb, maD_nb, mbD_nb, mas1D_nb, mas2D_nb, mbs1D_nb)
+  
+  }else{
+  load(file = here::here('Data/DAT_glmmTMB_NB_2000-2020.Rdata'))
+  }
+
+  # model ass
+  if(recompute_diag){
+  m_ass(name = 'Fig_Z1_2000-2020_a', mo = sum_m_nb, 
+  dat = tt00, offset = TRUE, 
+  cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
+  show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2000-2020_b', mo = maD_nb, 
+    dat = d00, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2000-2020_c', mo = mbD_nb, 
+    dat = d00, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2000-2020_d', mo = mas1D_nb, 
+    dat = d00, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE) # spatial asymetry without dispformula, given ok remaining plots, is a cosmetic imbalance, not a structural failure; if dispformula = ~ holc_grade_D + scale(log(area_holc_km2)) spatial asymetry disapears: the dispersion parameter (θ) varies slightly by socioeconomic class and area size, so smaller or denser areas — where variance tends to be higher relative to mean — are no longer “forced” into the same variance structure as large areas, which removes the systematic asymmetry between large negative and small positive residuals. The residual distribution now looks balanced, dispersion ≈ 1, and all structural panels are clean — that’s a near-optimal model.
+
+  m_ass(name = 'Fig_Z1_2000-2020_e', mo = mas2D_nb, 
+    dat = d00, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2000-2020_f', mo = mbs1D_nb, 
+    dat = d00, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+  }
 
   models_T0020_D_nb <- rlang::set_names(
     list(maD_nb, mbD_nb, mas1D_nb, mas2D_nb, mbs1D_nb),
     c("maD_nb","mbD_nb","mas1D_nb", "mas2D_nb", "mbs1D_nb")
   )
-
   # labels
   models_T0020_labels_D_nb <- c(
     maD_nb      = "(1 | state) + (1 | city) + (1 | polygon)",
     mbD_nb      = "(1 | state / city / HOLC grade / polygon)",
     mas1D_nb    = "(1 | state) + (year | city) + (1 | polygon)",    
     mas2D_nb    = "(1 | state) + (1 | city) + (year | polygon)",
-    mbs1D_nb    = "(year | state / city / HOLC grade / polygon)"
+    mbs1D_nb    = "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # sort models
@@ -2962,7 +4046,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     "(1 | state / city / HOLC grade / polygon)",
     "(1 | state) + (year | city) + (1 | polygon)",
     "(1 | state) + (1 | city) + (year | polygon)",
-    "(year | state / city / HOLC grade / polygon)"
+    "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
@@ -2976,7 +4060,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     )
 
   lm_lab_nb <- paste0(
-    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020)", nobs(sum_m)), "\n(n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
+    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020)", nobs(sum_m_nb)), "\n(n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
 
   # lmer
   coef_df_0020_D_nb <- purrr::imap_dfr(models_T0020_D_nb, ~ ext_fixef_D(.x) |> dplyr::mutate(model=.y))
@@ -2995,6 +4079,8 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
   gap_pt <- 5 # adjusts subtitle spacing: how big a gap you want between the two rows (in points)
 
   leg_tit = paste0("Mixed-effect negative binomial model<br>on raw observations per year<br>random-effects specification:<br><span style='font-weight:400;font-size:9pt;'>(n = ", comma(nrow(d00)),' for 2000-2020)<br>(n = ', comma(nrow(d10)), ' for 2010-2020)</span>') #  leg_tit = paste0('Mixed-effect model\nrandom-effects specification:\n(n = ', nrow(d00),' for 2000-2020)\n(n = ', nrow(d10), ' for 2010-2020)') # legend title
+
+  rm(sum_m_nb, maD_nb, mbD_nb, mas1D_nb, mas2D_nb, mbs1D_nb); invisible(gc()) # clean
 
   tr1D_nb = 
   ggplot(coef_df_0020_D_nb, aes(
@@ -3016,15 +4102,15 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
       data = lm_df_nb,
       aes(x = estimate, y = holc_grade_dif,
           xmin = conf.low, xmax = conf.high,
-          color = lm_lab),
+          color = lm_lab_nb),
       position = position_nudge(y = 0.36),  # small vertical offset; remove if undesired
       inherit.aes = FALSE,
       linewidth = 0.4
     ) +
     scale_color_manual(
       name = NULL,                        # no legend title
-      values = setNames("black", lm_lab),
-      breaks = lm_lab,
+      values = setNames("black", lm_lab_nb),
+      breaks = lm_lab_nb,
       guide = guide_legend(order = 99, override.aes = list(linewidth = 0.8))
     ) +                     
     theme_light() +
@@ -3040,6 +4126,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     )
 
   # MODELS 2010-2020
+  if(recreate_data==TRUE){
   # 0) lm model
   sum_m_10_nb <- MASS::glm.nb(n_obs ~ holc_grade_D*scale(year) + 
               offset(log(sum_area_holc_km2)), 
@@ -3077,37 +4164,77 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 
   mbs1_D_nb = glmmTMB(sum_bird_obs ~  scale(year)*holc_grade_D +  
                  offset(log(area_holc_km2)) +
-                (scale(year)|state/city_state/holc_grade/id),
+                 (scale(year)|state/city_state/holc_grade) + (1|id),
                 d10,
                 family = nbinom2()
               )
 
+  save(file = here::here('Data/DAT_glmmTMB_NB_2010-2020.Rdata'),
+      sum_m_10_nb, ma_D_nb, mb_D_nb, mas1_D_nb, mas2_D_nb, mbs1_D_nb)
+  
+  }else{
+  load(file = here::here('Data/DAT_glmmTMB_NB_2010-2020.Rdata'))
+  }
+
+  # model ass
+  if(recompute_diag){
+  m_ass(name = 'Fig_Z1_2010-2020_a', mo = sum_m_10_nb, 
+    dat = tt10, offset = TRUE, 
+    cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2010-2020_b', mo = ma_D_nb, 
+    dat = d10, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2010-2020_c', mo = mb_D_nb, 
+    dat = d10, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2010-2020_d', mo = mas1_D_nb, 
+    dat = d10, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE) 
+
+  m_ass(name = 'Fig_Z1_2010-2020_e', mo = mas2_D_nb, 
+    dat = d10, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+
+  m_ass(name = 'Fig_Z1_2010-2020_f', mo = mbs1_D_nb, 
+    dat = d10, offset = TRUE, 
+    cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
+    show_binned = TRUE, PNG = TRUE)
+  }
+
+  # model set
   models_T1020_D_nb <- rlang::set_names(
     list(ma_D_nb, mb_D_nb, mas1_D_nb, mas2_D_nb, mbs1_D_nb),
     c("ma_D_nb","mb_D_nb","mas1_D_nb", "mas2_D_nb", "mbs1_D_nb")
   )
-
   # labels
   models_T1020_labels_D_nb <- c(
     ma_D_nb      = "(1 | state) + (1 | city) + (1 | polygon)",
     mb_D_nb      = "(1 | state / city / HOLC grade / polygon)",
     mas1_D_nb    = "(1 | state) + (year | city) + (1 | polygon)",
     mas2_D_nb    = "(1 | state) + (1 | city) + (year | polygon)",
-    mbs1_D_nb    = "(year | state / city / HOLC grade  / polygon)"
+    mbs1_D_nb    = "(year | state / city / HOLC grade) + (1 | polygon)"
   )
-
+  
   # sort models
   models_T1020_order_D_nb <- c(
     "(1 | state) + (1 | city) + (1 | polygon)",
     "(1 | state / city / HOLC grade / polygon)",
     "(1 | state) + (year | city) + (1 | polygon)",
     "(1 | state) + (1 | city) + (year | polygon)",
-    "(year | state / city / HOLC grade  / polygon)"
+    "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # 2) Extract fixed effects on the modeling scale (ln), fast Wald CIs
   # lm
-  lm_df_10_nb <- ext_fixef_D_lm(sum_m_10) |>
+  lm_df_10_nb <- ext_fixef_D_lm(sum_m_10_nb) |>
     mutate(
       type2 = fcase(type == "intercept", "Intercept",
                     type == "slope_per_SDyear", "Slope",
@@ -3116,7 +4243,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     )
 
   lm_lab_10_nb <-  paste0(
-    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_m)), "n = ", nrow(tt10), " for 2010-2010)")  # Legend label text (no title, single key) 
+    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_m_10_nb)), "n = ", nrow(tt10), " for 2010-2010)")  # Legend label text (no title, single key) 
 
   # lmer
   coef_df_1020_D_nb <- purrr::imap_dfr(models_T1020_D_nb, ~ ext_fixef_D(.x) |> dplyr::mutate(model=.y))
@@ -3131,6 +4258,8 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
   )]
 
   coef_df_1020_D_nb[, holc_grade_dif := paste0(holc_grade, ' vs D')]
+
+  rm(sum_m_10_nb, ma_D_nb, mb_D_nb, mas1_D_nb, mas2_D_nb, mbs1_D_nb); invisible(gc()) # clean
 
   tr2D_nb =     
   ggplot(coef_df_1020_D_nb, aes(
@@ -3154,15 +4283,15 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
       data = lm_df_10_nb,
       aes(x = estimate, y = holc_grade_dif,
           xmin = conf.low, xmax = conf.high,
-          color = lm_lab_10),
+          color = lm_lab_10_nb),
       position = position_nudge(y = 0.36),
       inherit.aes = FALSE,
       linewidth = 0.4
     ) +
     scale_color_manual(
       name = NULL,
-      values = setNames("black", lm_lab_10),
-      breaks = lm_lab,
+      values = setNames("black", lm_lab_10_nb),
+      breaks = lm_df_10_nb,
       guide = guide_legend(order = 99, override.aes = list(linewidth = 0.8))
     ) +    
     scale_x_continuous(labels = lab_log_plus_pct) + #scale_x_continuous(labels = lab_log_rr) +                   
@@ -3247,6 +4376,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
   # MODELS 2000-2020
   
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
+  if(recreate_data==TRUE){
   # lm model on sum per holc grade
   sum_mi  <- MASS::glm.nb(n_obs ~ 0 + holc_grade + holc_grade:scale(year) + 
               offset(log(sum_area_holc_km2)), 
@@ -3285,11 +4415,17 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 
   mbs1i = glmmTMB(sum_bird_obs ~ 0 + holc_grade + holc_grade:scale(year) + 
               offset(log(area_holc_km2)) +
-              (scale(year)|state/city_state/holc_grade/id),
+              (scale(year)|state/city_state/holc_grade) + (1|id),
               d00,
               family = nbinom2()
               )
 
+  save(file = here::here('Data/DAT_glmmTMB_NB_2000-2020_no-int.Rdata'),
+      sum_mi, mai, mbi, mas1i, mas2i, mbs1i)
+  
+  }else{
+  load(file = here::here('Data/DAT_glmmTMB_NB_2000-2020_no-int.Rdata'))
+  }
 
   # 2) model set and labels
   models_T0020<- list(
@@ -3305,7 +4441,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     mbi      = "(1 | state / city / HOLC grade / polygon)",
     mas1i    = "(1 | state) + (year | city) + (1 | polygon)",
     mas2i    = "(1 | state) + (1 | city) + (year | polygon)",
-    mbs1i    = "(year | state / city / HOLC grade / polygon)"
+    mbs1i    = "(year | state / city / HOLC grade) + (1 | polygon)"
   )
   # sort models
   models_T0020_order <- c(
@@ -3313,7 +4449,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     "(1 | state / city / HOLC grade / polygon)",
     "(1 | state) + (year | city) + (1 | polygon)",
     "(1 | state) + (1 | city) + (year | polygon)",
-    "(year | state / city / HOLC grade / polygon)"
+    "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
@@ -3326,7 +4462,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     )
 
   lm_lab <- paste0(
-    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_m)), "n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
+    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_mi)), "n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
 
   # lmer
   coef_df_0020 <- purrr::imap_dfr(models_T0020, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
@@ -3354,8 +4490,8 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     labs(y="HOLC grade", x= NULL, subtitle ='2000 - 2020') +
     ggsci::scale_color_locuszoom(
       name   = leg_tit,
-      breaks = models_T0020_order_D,
-      limits = models_T0020_order_D  # keeps legend/order consistent
+      breaks = models_T0020_order,
+      limits = models_T0020_order  # keeps legend/order consistent
     ) +
     # lm model
     ggnewscale::new_scale_color() +  # start a NEW color scale (separate legend)
@@ -3389,6 +4525,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 
   # MODELS 2010-2020
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
+  if(recreate_data==TRUE){
   # lm model on sum per holc grade
     sum_m_i  <- MASS::glm.nb(n_obs ~ 0 + holc_grade + holc_grade:scale(year) + 
               offset(log(sum_area_holc_km2)), 
@@ -3425,10 +4562,16 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 
     mbs1_i = glmmTMB(sum_bird_obs ~  0 + holc_grade + holc_grade:scale(year) + 
                  offset(log(area_holc_km2)) +
-                (scale(year)|state/city_state/holc_grade/id),
+                (scale(year)|state/city_state/holc_grade) + (1|id),
                 d10,
                 family = nbinom2()
               )
+  save(file = here::here('Data/DAT_glmmTMB_NB_2010-2020_no-int.Rdata'),
+      sum_m_i, ma_i, mb_i, mas1_i, mas2_i, mbs1_i)
+  
+  }else{
+  load(file = here::here('Data/DAT_glmmTMB_NB_2010-2020_no-int.Rdata'))
+  }
 
   # 2) model set and labels
   models_T1020<- list(
@@ -3444,7 +4587,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     mb_i      = "(1 | state / city / HOLC grade / polygon)",
     mas1_i    = "(1 | state) + (year | city) + (1 | polygon)",
     mas2_i    = "(1 | state) + (1 | city) + (year | polygon)",
-    mbs1_i    = "(year | state / city / HOLC grade / polygon)"
+    mbs1_i    = "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # sort models
@@ -3453,7 +4596,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     "(1 | state / city / HOLC grade / polygon)",
     "(1 | state) + (year | city) + (1 | polygon)",
     "(1 | state) + (1 | city) + (year | polygon)",
-    "(year | state / city / HOLC grade / polygon)"
+    "(year | state / city / HOLC grade) + (1 | polygon)"
   )
 
   # 3) Extract fixed effects on the modeling scale (ln), fast Wald CIs
@@ -3466,7 +4609,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     )
 
   lm_10_lab <- paste0(
-    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_m)), "\n(n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
+    sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020, ", nobs(sum_m_i)), "\n(n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
   
   # lmer
   coef_df_1020 <- purrr::imap_dfr(models_T1020, ~ ext_fixef(.x) |> dplyr::mutate(model=.y))
@@ -3492,8 +4635,8 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
     labs(y="HOLC grade", x="Standardised estimates", subtitle ='2010 - 2020') +
     ggsci::scale_color_locuszoom(
       name   = leg_tit,
-      breaks = models_T0020_order_D,
-      limits = models_T0020_order_D  # keeps legend/order consistent
+      breaks = models_T1020_order,
+      limits = models_T1020_order  # keeps legend/order consistent
     ) +
     # lm 
     ggnewscale::new_scale_color() +
@@ -3582,7 +4725,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 #' 
 #' <br>
 #'  
-#' The above models are meant as appropriate alternatives to the authors' mispecified models. However, these models specify rather simplistic linear relationships, whereas we showed that the temporal trends might be more complex (Fig. [X](F_X), Fig. [Z0ab](#F_Z0ab)). Thus, to visualise the fluctuations we analysed temporal changes in observation rates using a generalised additive mixed model (GAM) fitted with `bam()` in `mgcv``. The response was the annual number of bird observations per HOLC polygon, modelled with a negative-binomial distribution and a `log(area)` offset to estimate rates per km². Year (scaled) was fitted with a penalised regression spline, with grade-specific deviations (`s(year, by=holc_grade)`), allowing flexible non-linear trends. Random intercepts for state and city, and random city-specific year slopes (`bs="re"`) accounted for spatial hierarchy and differing temporal trajectories among cities. Models were fitted via REML with discrete smooths to support large datasets (~200k rows).
+#' The above models are meant as appropriate alternatives to the authors' mispecified models. However, these models specify rather simplistic linear relationships, whereas we showed that the temporal trends might be more complex (Fig. [X](F_X), Fig. [Z0ab](#F_Z0ab)). Thus, to visualise the fluctuations we analysed temporal changes in observation rates using a generalised additive mixed model (GAM) fitted with `bam()` in `mgcv`. The response was the annual number of bird observations per HOLC polygon, modelled with a negative-binomial distribution and a cetered `log(area)` offset to estimate rates per km². Year (scaled) was fitted with a penalised regression spline, with grade-specific deviations (`s(year, by=holc_grade)`), allowing flexible non-linear trends. Random intercepts for state and city, and random city-specific year slopes (`bs="re"`) accounted for spatial hierarchy and differing temporal trajectories among cities, which captures city-level departures from the global smooth but avoids over-parameterising rarely sampled city–grade combinations. Models were fitted via REML with discrete smooths to support large datasets (~200k rows).
 #' 
 #' **Model-based predictions and contrasts** To visualise temporal trends in sampling density for each HOLC grade, we obtained population-level predictions from the negative-binomial GAM by marginalising over all random effects. Predictions were generated using the model’s linear predictor matrix (`type = "lpmatrix"`) while excluding random-effect smooths (`s(state)`, `s(city_state)`, `s(id)`, and `s(city_state):year_s)`. This yields expected values for an “average” neighbourhood (i.e. with mean-zero random effects).
 #' 
@@ -3590,9 +4733,18 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/rev_trend-raw_AD_more7
 #' 
 #' 
 
-#+ F_W1, fig.width = 8/2.5, fig.height = 9/2.5
+#+ F_W1, fig.width = 16/2.5, fig.height = 9/2.5
+#rm(samp_d_binary_holc, m0, samp_d_binary_holc_rirs,m1, m1b, m2, m1p, m2p, m3p, samp_m0_g, m0_g, samp_m1_g, m1_g, m1b_g, m2_g, m1p_g, m2p_g, m3p_g, d_ri, mB0, d_rirs, mB1,mB2,  d_fe_rirs, mB1p,mB2p, mB3p, d_ri_a,mB0_a, d_rirs_a, mB1_a, mB2_a, d_fe_rirs_a, mB1p_a,  mB2p_a, mB3p_a, d_ri_r, mB0_r, d_rirs_r, mB1_r,  mB2_r, d_fe_rirs_r,mB1p_r,  mB2p_r, mB3p_r, c_ri, mC0, c_rirs, mC1, mC2, c_fe_rirs, mC1p, mC2p, mC3p, m_density_mul, m_density_ok, m_density_mul_ln, m_density_ok_ln, gam_density_mul, gam_density_ok, gam_density_mul_ln, gam_density_ok_ln, sum_m_nb, maD_nb, mbD_nb, mas1D_nb, mas2D_nb, mbs1D_nb, sum_m_10_nb, ma_D_nb, mb_D_nb, mas1_D_nb, mas2_D_nb, mbs1_D_nb, sum_mi, mai, mbi, mas1i, mas2i, mbs1i, sum_m_i, ma_i, mb_i, mas1_i, mas2_i, mbs1_i ); gc() # to free memory for the huge bam NB output 
+
+rm(list=setdiff(ls(), c("d00", "holc_pal", "m_ass", "minor_breaks_log10", "recreate_data", "proj_root")));  invisible(gc()) # free memory for the huge bam NB output 
+
+plot_only = TRUE # avoids hitting RAM limits during html generation by loading only the resulting figures (that can be generated by the below code)
+
+if(plot_only){
+knitr::include_graphics(here::here("Output", "bam-nb_4-panel.png"))
+} else {
 # center/scale year like in lmer
-d00$year_s <- as.numeric(scale(d00$year))
+d00[, year_s := as.numeric(scale(year))]
 sc <- scale(d00$year)                
 c0 <- attr(sc, "scaled:center") 
 s0 <- attr(sc, "scaled:scale")
@@ -3603,7 +4755,7 @@ d00$city_state <- droplevels(factor(d00$city_state))
 d00$id        <- droplevels(factor(d00$id))
 d00$holc_grade <- droplevels(factor(d00$holc_grade))
 d00[, off := log(area_holc_km2)]
-d00[, off := off - mean(off)] #TODO:explain from chatGPT what this does
+d00[, off := off - mean(off)] # subtracting a constant from the offset is equivalent to adding that constant to the intercept; thus, the intercept will correspond to the expected log-count at mean log(area), which improves numerical stability and makes the intercept more interpretable
 
 if(recreate_data){ # loading model outpus; the below model runs for long and often needs clean R session, else the memory capacity might be reached too early
 
@@ -3614,17 +4766,33 @@ m_nb <- bam(sum_bird_obs ~
             s(state,bs="re") +
             s(city_state,bs="re")+s(id,bs="re") +
             s(city_state, by=year_s, bs="re"),
-            offset = off, 
+            offset = off, # offset for log(area) (centered so that the mean offset is zero)
             family = nb(),  # mgcv estimates theta
             data=d00, method="fREML", 
             discrete=TRUE, select=TRUE, gc.level=2,
             nthreads = max(1L, parallel::detectCores() - 1L)
 )
 
-save(file='Data/Dat_bam-nb_output_v2.Rdata', m_nb)   
+save(file=here::here('Data/Dat_bam-nb_output_v2.Rdata', m_nb))  
 
-} else {load(file='Data/Dat_bam-pois_output_v.Rdata')}
-         
+# Strip heavy stuff that m_ass and below code never touches
+m_nb$model             <- NULL
+m_nb$y                 <- NULL
+m_nb$R                 <- NULL
+m_nb$Ve                <- NULL
+m_nb$X                 <- NULL
+m_nb$residuals         <- NULL
+m_nb$fitted.values     <- NULL
+m_nb$linear.predictors <- NULL
+m_nb$effects           <- NULL
+save(file=here::here('Data/Dat_bam-nb_output_lean.Rdata', m_nb))
+
+} else {load(file=here::here('Data/Dat_bam-nb_output_lean.Rdata'))}
+
+# model ass
+m_ass(name  = 'Fig_bam-nb_test', mo = m_nb, dat = d00, offset = TRUE, cont = c("year", "area_holc_km2"), categ = 'holc_grade',show_binned = TRUE, show_temporal_grouped = 'year', PNG = TRUE) 
+# Good mean–variance handling (Pearson dispersion ≈ 0.886 → slight underdispersion, which is harmless and common in NB fits). No evidence of global spatial autocorrelation (Moran’s I ≈ 0; p=1). Residual patterns follow expected NB behaviour: right tail, heteroskedasticity decreasing with fitted μ, and no systematic grade/area/year structure. Autocorrelation negligible across lags. Offset treated correctly (residuals vs offset clean). In short: Model assumptions look fine; nothing invalidates inference or predictions. This is as good as one can reasonably expect from a 200k-row NB GAM with complex structure. Titles indicate specific models behind specific figures or tables and highlight model formula, family and, if present, dispersion parameter. Panel 1–2. Pearson residuals vs fitted / sqrt-residuals vs fitted: Classic NB funnel shape: residual variance compresses with increasing mean; no curvature or systematic deviation; no clumping by HOLC grade; the red dashed line is centered correctly → no bias. 3-4. Binned counts vs fitted: Points lie along the 95% envelopes except at extreme counts (>200), which is expected in NB with large city hotspots; no systematic over- or under-fitting in the low/mid ranges. 5. Normal QQ plot: NB residuals should be right-skewed; this is normal; the strong right tail is expected; no left-tail distortions; acceptable for NB GAMs. 6. Residuals vs offset: Clean; no correlation or pattern; confirms offset(log(area)) is working as intended. 7–9. Residuals vs year, area, HOLC grade: Year noisy but no long-term drift → the spline absorbed temporal trends; Area: expected decreasing variance with area (because large polygons produce higher mean → smaller Pearson residual magnitude); HOLC grade: same shape across grades; no grade-by-mean interaction leftover. 10-11. ACF & PACF: No significant autocorrelation; minor wiggles at early lags are well within bounds. 12–15. Spatial distribution maps (<0 and >0): No obvious clusters or directional gradients; positive/negative residuals appear randomly distributed; no spatial violation; spatial autocorrelation (Moran’s I) = −0.043, p = 1; no global spatial autocorrelation. 14. Dispersion summary: Pearson dispersion = 0.886 (slightly < 1) → mild underdispersion.NB fits are designed for overdispersion; slight underdispersion means the NB family is conservative; No risk of inflated false positives.
+
 # MARGINAL PREDICTIONS
 
 # reference level
@@ -3672,39 +4840,55 @@ curves_nb <- rbindlist(lapply(levels(d00$holc_grade), pred_one))
 curves_nb[, `:=`(fit_orig = exp(fit), lwr_orig = exp(lwr), upr_orig = exp(upr))]
 
 # log breaks for obs/km²
-brks <- c(0.1, 1, 5, 10, 100)
+brks <- c(0.1, 1, 10, 100)
+
+# adj
+minor_adj = 0.2
 
 g_bam1_nb <-
   ggplot(curves_nb, aes(year, fit_orig, colour = holc_grade, fill = holc_grade)) +
   geom_ribbon(aes(ymin = lwr_orig, ymax = upr_orig), alpha = 0.15, colour = NA) +
   geom_line() +
-  coord_cartesian(ylim = c(0.35, 100)) + 
+  coord_cartesian(ylim = c(0.039, 100)) + 
   scale_y_log10(
       name   = "Sampling density (observations per km²)",
       breaks = brks, 
       labels = scales::label_number(drop0trailing = TRUE), 
       minor_breaks = minor_breaks_log10) +
+  annotate("text", x = min(curves_nb$year) - minor_adj, y = 5,
+           label = "5", size = 2.2, colour = "grey60", hjust = 1) +
+  annotate("text", x = min(curves_nb$year) - minor_adj, y = 20,
+           label = "20", size = 2.2, colour = "grey60", hjust = 1) +
+  annotate("text", x = min(curves_nb$year) - minor_adj, y = 40,
+           label = "40", size = 2.2, colour = "grey60", hjust = 1) +              
   labs(x = "Year", subtitle = "log scale") +
   scale_fill_manual(values = holc_pal, name = "HOLC grade") +
   scale_colour_manual(values = holc_pal, name = "HOLC grade") +
-  theme_minimal(base_size = 9) +
-  theme(plot.subtitle = element_text(colour = "grey40"))
+  theme_minimal(base_size = 8) +
+  theme(plot.subtitle = element_text(colour = "grey40"),
+        legend.position = c(1.01, 0.475),
+        legend.justification = c("right", "top"),
+        legend.text  = element_text(size = 6),
+        legend.title = element_text(size = 7, margin = margin(b = 0.75)),
+        legend.spacing.x = unit(0.2, "lines"),
+        legend.spacing.y = unit(0.2, "lines"),
+        legend.key.size = unit(0.5, "lines")
+    )
 
 g_bam2_nb = 
 ggplot(curves_nb, aes(year, fit_orig, colour = holc_grade, fill = holc_grade)) +
   geom_ribbon(aes(ymin = lwr_orig, ymax = upr_orig), alpha = 0.15, colour = NA) +
   geom_line() +
-  labs(y = "Sampling density / km²", x = "Year", subtitle = 'original scale') +
+  labs(y = "Sampling density (observations per km²)", x = "Year", subtitle = 'original scale') +
   scale_fill_manual(values = holc_pal) + 
   scale_colour_manual(values = holc_pal) + 
-  theme_minimal(base_size = 9) +
+  theme_minimal(base_size = 8) +
   theme(legend.position = "none",
         plot.subtitle = element_text(colour = "grey40"))
 
-g_bam1_nb / g_bam2_nb  + plot_layout(axis_title = 'collect', axes = "collect"); #ggsave('Output/bam-nb_ABCD_v3.png', width = 8, height = 9, units = 'cm')
+#g_bam1_nb / g_bam2_nb  + plot_layout(axis_title = 'collect', axes = "collect"); #ggsave('Output/bam-nb_ABCD_v3.png', width = 8, height = 9, units = 'cm')
 
-
-#+ F_W2, fig.width = 7/2.5, fig.height = 16/2.5
+# CONTRAST A-D
 ndA <- make_nd("A")
 ndD <- make_nd("D")
 
@@ -3744,7 +4928,7 @@ ggplot(out_nb, aes(year, diff)) +
   geom_line() +
   geom_hline(yintercept = 0, linetype = 2) +
   labs(y = "Predicted A - D differences", x = "Year", subtitle = 'absolute, log scale') +
-  theme_minimal(base_size = 9)+
+  theme_minimal(base_size = 8)+
   theme(plot.subtitle = element_text(colour = "grey40"))
 
 # plot as ratio (A:D)
@@ -3754,7 +4938,7 @@ ggplot(out_nb, aes(year, ratio)) +
   geom_line() +
   geom_hline(yintercept = 1, linetype = 2) +
   labs(y = "Predicted A - D differences", x = "Year", subtitle = "relative to D, original scale") +
-  theme_minimal(base_size = 9)+
+  theme_minimal(base_size = 8)+
   theme(plot.subtitle = element_text(colour = "grey40"))
 
 # plot as percent difference
@@ -3762,9 +4946,9 @@ g_t3_nb =
 ggplot(out_nb, aes(year, pct)) +
   geom_ribbon(aes(ymin = (lo-1)*100, ymax = (hi-1)*100), alpha = 0.15) +
   geom_line() +
-  geom_hline(yintercept = 0, linetype = 2) +
-  labs(y = "Predicted A - D differences", x = "Year",  subtitle = "% (relative to D), original scale") +
-  theme_minimal(base_size = 9)+
+  #geom_hline(yintercept = 0, linetype = 2) +
+  labs(y = "Predicted differences (A - D)", x = "Year",  subtitle = "%, relative to D") +
+  theme_minimal(base_size = 8)+
   theme(plot.subtitle = element_text(colour = "grey40"))
 
 # plot as absolute differences
@@ -3772,15 +4956,22 @@ g_t4_nb =
 ggplot(out_nb, aes(year, abs)) +
   geom_ribbon(aes(ymin = abs_lwr, ymax = abs_upr), alpha = 0.15) +
   geom_line() +
-  geom_hline(yintercept = 0, linetype = 2) +
-  labs(y = "Predicted A - D differences", x = "Year",  subtitle = "absolute, original scale (observations per km²)") +
-  theme_minimal(base_size = 9)+
+  #geom_hline(yintercept = 0, linetype = 2) +
+  labs(y = "Predicted differences (A - D)", x = "Year",  subtitle = "absolute, observations per km²") +
+  theme_minimal(base_size = 8)+
   theme(plot.subtitle = element_text(colour = "grey40"))
 
 
-g_t1_nb / g_t3_nb / g_t4_nb + plot_layout(axis_title = 'collect', axes = "collect");# ggsave('Output/bam-nb_diffAD_v4.png', width = 8, height = 16, units = 'cm')
+#g_t3_nb / g_t4_nb + plot_layout(axis_title = 'collect', axes = "collect");# ggsave('Output/bam-nb_diffAD_v4.png', width = 8, height = 16, units = 'cm')
 
+left_bam = g_bam1_nb / g_bam2_nb  + plot_layout(axis_title = 'collect', axes = "collect")
+right_bam = g_t3_nb / g_t4_nb + plot_layout(axis_title = 'collect', axes = "collect")
 
+(left_bam | right_bam)+ plot_layout(axis_title = 'collect_x'); #ggsave('Output/bam-nb_4-panel.png', width = 16, height = 9, units = 'cm')
+}
+
+#' <a name="F_W">
+#' **Figure W</a> | Non-linear temporal changes in bird-sampling density by HOLC grade and disparity between grades A and D.** **Left panels**, population-level (marginal) predictions from a negative binomial generalised additive model (`bam`) with log link and centered `log(area)` offset, fitted to polygon-level counts (2000–2020). The model included a smooth for year, grade-specific smooth deviations, and random effects for state, city, and polygon, and city-specific temporal slopes. Curves show predicted sampling density (observations per km²) for each HOLC grade on a log scale (top left) and original scale (bottom left). **Right panels**, predicted differences between grades A and D from the same model, expressed as percent difference relative to D (top right) and as absolute difference in observations per km² (bottom right). Relative disparity varies non-linearly over time and exceeds 200% by 2020, whereas absolute differences remain small (< ~25 observations per km²), indicating that large proportional disparities do not translate into large absolute changes in sampling intensity. *In all panels*, shaded ribbons are 95% confidence intervals.
 
 #' SHORT : 
 #' The non-linear smooth confirms that disparity is neither linear nor monotonic. Specifically, relative disparity remains stable between 2000–2005, increases by ~100% between 2005–2010, is broadly stable or slightly declines between 2010–2015, and then increases again by ~100% after 2015.
@@ -3801,366 +4992,34 @@ g_t1_nb / g_t3_nb / g_t4_nb + plot_layout(axis_title = 'collect', axes = "collec
 #' 
 #' #' # Model assumptions
 
-# generates pngs with model assumptions that are later loaded within the html
-
-#' Fig 1 logit scale
-m_ass(name = 'Fig_1a', mo = samp_d_binary_holc, dat = h,  
-      categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) # Panels 1 and 4 together show systematic structure (not random scatter), implying that although the dispersion summary (~0.87) suggests no overdispersion, the mean–variance relationship isn’t fully captured—possibly due to missing covariates or inadequate functional form (e.g. nonlinear effect of holc_grade).
-
-m_ass(name = 'Fig_1b', mo = m0, dat = h, 
-      categ = 'holc_grade', show_binned = TRUE, PNG = TRUE)  
-
-m_ass(name = 'Fig_1c', mo = samp_d_binary_holc_rirs, dat = h, 
-      categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'Fig_1d', mo = m1, dat = h, 
-      categ = 'holc_grade', show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'Fig_1e', mo = m1b, dat = h, 
-      categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', show_binned = TRUE, PNG = TRUE) 
-      # spatial smoother (s(lon, lat, bs = "gp"))) in glmmTMB refit did not improve the residuals suggesting  that whatever clustering remains is weak or idiosyncratic rather than a systematic spatial process (random structure already absorbs most spatial correlation); 
-      # library(spdep); nb <- knearneigh(coords, k = 4) |> knn2nb(); lw <- nb2listw(nb, style = "W"); moran.test(resid(m1b), lw); I ≈ −0.0095, p ≈ 0.96 → no positive spatial autocorrelation; if anything a tiny (practically irrelevant) negative signal. 
-      #library(gstat); library(sp); h_sp <- h; coordinates(h_sp) <- ~lon + lat; vgm_mod <- variogram(resid(m1b) ~ 1, h_sp); plot(vgm_mod, main = "Residual semivariogram"); flat over distance; no sharp rise near 0, no clear sill/range structure = spatial clustering is not an issue
-
-m_ass(name = 'Fig_1f', mo = m2, dat = h, 
-      categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'Fig_1g', mo = m1p, dat = h, 
-      categ = 'holc_grade', cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), trans = c('log','none','none','none','none','none'), show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'Fig_1h', mo = m2p, dat = h, 
-      categ = 'holc_grade',
-      cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
-      trans = c('log','none','none','none','none','none'), 
-      show_binned = TRUE, PNG = TRUE)   
-
-m_ass(name = 'Fig_1i', mo = m3p, dat = h, 
-      categ = 'holc_grade', 
-      cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
-      trans = c('log','none','none','none','none','none'), 
-      show_binned = TRUE, PNG = TRUE)      
-
-# Fig. 1 original scale
-m_ass(name = 'gaus_Fig_1a', mo = samp_m0_g, dat = h,  
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'gaus_Fig_1b', mo = m0_g, dat = h, 
-      categ = 'holc_grade',  PNG = TRUE)  
-
-m_ass(name = 'gaus_Fig_1c', mo = samp_m1_g, dat = h, 
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'gaus_Fig_1d', mo = m1_g, dat = h, 
-      categ = 'holc_grade', PNG = TRUE) 
-
-m_ass(name = 'gaus_Fig_1e', mo = m1b_g, dat = h, 
-      categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', 
-      PNG = TRUE) 
-      
-m_ass(name = 'gaus_Fig_1f', mo = m2_g, dat = h, 
-      categ = 'holc_grade', cont = 'area_holc_km2', trans = 'log', 
-      PNG = TRUE) 
-
-m_ass(name = 'gaus_Fig_1g', mo = m1p_g, dat = h, 
-      categ = 'holc_grade', cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), trans = c('log','none','none','none','none','none'),  PNG = TRUE) 
-
-m_ass(name = 'gaus_Fig_1h', mo = m2p_g, dat = h, 
-      categ = 'holc_grade',
-      cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
-      trans = c('log','none','none','none','none','none'), 
-      PNG = TRUE)   
-
-m_ass(name = 'gaus_Fig_1i', mo = m3p_g, dat = h, 
-      categ = 'holc_grade', 
-      cont = c('area_holc_km2','ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'),
-      trans = c('log','none','none','none','none','none'), 
-     PNG = TRUE) 
-
-# Fig 2 - sampling density non-zero
-m_ass(name = 'Fig_2a', mo = d_ri, dat = hB_,  
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'Fig_2b', mo = mB0, dat = hB_, 
-      categ = 'holc_grade',  PNG = TRUE)  
-
-m_ass(name = 'Fig_2c', mo = d_rirs, dat = hB_, 
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'Fig_2d', mo = mB1, dat = hB_, 
-      categ = 'holc_grade', PNG = TRUE) 
-
-m_ass(name = 'Fig_2e', mo = mB2, dat = hB_, 
-      categ = 'holc_grade', PNG = TRUE) 
-
-m_ass(name = 'Fig_2f', mo = d_fe_rirs, dat = hB_, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km'), 
-      PNG = TRUE) 
-      
-m_ass(name = 'Fig_2g', mo = mB1p, dat = hB_, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
-      PNG = TRUE) 
-
-m_ass(name = 'Fig_2h', mo = mB2p, dat = hB_, 
-      categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
-      PNG = TRUE) 
-
-m_ass(name = 'Fig_2i', mo = mB3p, dat = hB_, 
-      categ = 'holc_grade',
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
-      PNG = TRUE) 
-
-# Fig 2 - sampling density with zero data
-m_ass(name = 'a_Fig_2a', mo = d_ri_a, dat = hB,  
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2b', mo = mB0_a, dat = hB, 
-      categ = 'holc_grade',  PNG = TRUE)  
-
-m_ass(name = 'a_Fig_2c', mo = d_rirs_a, dat = hB, 
-      categ = 'holc_grade',  PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2d', mo = mB1_a, dat = hB, 
-      categ = 'holc_grade', PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2e', mo = mB2_a, dat = hB, 
-      categ = 'holc_grade', PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2f', mo = d_fe_rirs_a, dat = hB, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km'), 
-      PNG = TRUE) 
-      
-m_ass(name = 'a_Fig_2g', mo = mB1p_a, dat = hB, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
-      PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2h', mo = mB2p_a, dat = hB, 
-      categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), offset = TRUE,
-      PNG = TRUE) 
-
-m_ass(name = 'a_Fig_2i', mo = mB3p_a, dat = hB, 
-      categ = 'holc_grade',
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm'), 
-      PNG = TRUE) 
-
-# Fig 2 - counts with offset = rate; all data
-m_ass(name = 'r_Fig_2a', mo = d_ri_r, dat = hB,  
-      categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE,      
-      PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2b', mo = mB0_r, dat = hB, 
-      categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE)  
-
-m_ass(name = 'r_Fig_2c', mo = d_rirs_r, dat = hB, 
-      categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2d', mo = mB1_r, dat = hB, 
-      categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE,  PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2e', mo = mB2_r, dat = hB, 
-      categ = 'holc_grade', cont = 'area_holc_km2', offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2f', mo = d_fe_rirs_r, dat = hB, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km'), 
-      offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-      
-m_ass(name = 'r_Fig_2g', mo = mB1p_r, dat = hB, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
-      offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2h', mo = mB2p_r, dat = hB, 
-      categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'),
-      offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'r_Fig_2i', mo = mB3p_r, dat = hB, 
-      categ = 'holc_grade',
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
-      offset = TRUE, show_binned = TRUE, PNG = TRUE) 
-
-# Fig 3 - Completeness of sampling
-m_ass(name = 'Fig_3a', mo = c_ri, dat = hC,  
-      categ = 'holc_grade',    
-      PNG = TRUE) 
-
-m_ass(name = 'Fig_3b', mo = mC0, dat = hC, 
-      categ = 'holc_grade', PNG = TRUE)  
-
-m_ass(name = 'Fig_3c', mo = c_rirs, dat = hC, 
-      categ = 'holc_grade', cont = 'area_holc_km2', PNG = TRUE) 
-
-m_ass(name = 'Fig_3d', mo = mC1, dat = hC, 
-      categ = 'holc_grade', cont = 'area_holc_km2', PNG = TRUE) 
-
-m_ass(name = 'Fig_3e', mo = mC2, dat = hC, 
-      categ = 'holc_grade', cont = 'area_holc_km2',PNG = TRUE) 
-
-m_ass(name = 'Fig_3f', mo = c_fe_rirs, dat = hC, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km'), 
-      PNG = TRUE) 
-      
-m_ass(name = 'Fig_3g', mo = mC1p, dat = hC, 
-      categ = 'holc_grade', 
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
-      PNG = TRUE) 
-
-m_ass(name = 'Fig_3h', mo = mC2p, dat = hC, 
-      categ = 'holc_grade', cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), PNG = TRUE) 
-
-m_ass(name = 'Fig_3i', mo = mC3p, dat = hC, 
-      categ = 'holc_grade',
-      cont = c('ndvi','pct_pa','pop_per_km','mean_temp_c','mean_precip_mm','area_holc_km2'), 
-      PNG = TRUE)    
-
-# Table S1
-m_ass(name = 'Table_S1a_multiplied_data', mo = m_density_mul, dat = mul[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S1a_correct_data', mo = m_density_ok, dat = ok[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S1b_multiplied_data', mo = m_density_mul_ln, dat = mul[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S1b_correct_data', mo = m_density_ok_ln, dat = ok[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)        
-
-m_ass(name = 'Table_S1c_multiplied_data', mo = gam_density_mul, dat = mul[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S1c_correct_data', mo = gam_density_ok, dat = ok[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)          
-
-m_ass(name = 'Table_S1d_multiplied_data', mo = gam_density_mul_ln, dat = mul[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S1d_correct_data', mo = gam_density_ok_ln, dat = ok[Year %in% c(2000:2020)], 
-      categ = 'holc_grade',
-      cont = c('Year'), 
-      PNG = TRUE)  
-
-# Table S1        
-m_ass(name = 'Table_S2_all_years', mo = sum_m_nb, dat = mul[Year %in% c(2000:2020)], 
-      categ = 'holc_grade_D',
-      cont = c('year'), 
-      PNG = TRUE)  
-
-m_ass(name = 'Table_S2_2010-2020_years', mo = sum_m_10_nb, dat = ok[Year %in% c(2000:2020)], 
-      categ = 'holc_grade_D',
-      cont = c('year'), 
-      PNG = TRUE)  
-
-# Figure Z1 & Z2
-m_ass(name = 'Fig_Z1_2000-2020_a', mo = sum_m_nb, 
-  dat = tt00, offset = TRUE, 
-  cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2000-2020_b', mo = maD_nb, 
-  dat = d00, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2000-2020_c', mo = mbD_nb, 
-  dat = d00, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2000-2020_d', mo = mas1D_nb, 
-  dat = d00, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE) # spatial asymetry without dispformula, given ok remaining plots, is a cosmetic imbalance, not a structural failure; if dispformula = ~ holc_grade_D + scale(log(area_holc_km2)) spatial asymetry disapears: the dispersion parameter (θ) varies slightly by socioeconomic class and area size, so smaller or denser areas — where variance tends to be higher relative to mean — are no longer “forced” into the same variance structure as large areas, which removes the systematic asymmetry between large negative and small positive residuals. The residual distribution now looks balanced, dispersion ≈ 1, and all structural panels are clean — that’s a near-optimal model.
-
-m_ass(name = 'Fig_Z1_2000-2020_e', mo = mas2D_nb, 
-  dat = d00, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2000-2020_f', mo = mbs1D_nb, 
-  dat = d00, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-
-m_ass(name = 'Fig_Z1_2010-2020_a', mo = sum_m_10_nb, 
-  dat = tt10, offset = TRUE, 
-  cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2010-2020_b', mo = ma_D_nb, 
-  dat = d10, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2010-2020_c', mo = mb_D_nb, 
-  dat = d10, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2010-2020_d', mo = mas1_D_nb, 
-  dat = d10, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE) 
-
-m_ass(name = 'Fig_Z1_2010-2020_e', mo = mas2_D_nb, 
-  dat = d10, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-m_ass(name = 'Fig_Z1_2010-2020_f', mo = mbs1_D_nb, 
-  dat = d10, offset = TRUE, 
-  cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
-  show_binned = TRUE, PNG = TRUE)
-
-# Figure BAM
-m_ass(name  = 'Fig_bam-nb', mo = m_nb, dat = d00, offset = TRUE, cont = c("year", "area_holc_km2"), categ = 'holc_grade',show_binned = TRUE, show_temporal_grouped = 'year', PNG = TRUE) 
-# Good mean–variance handling (Pearson dispersion ≈ 0.886 → slight underdispersion, which is harmless and common in NB fits). No evidence of global spatial autocorrelation (Moran’s I ≈ 0; p=1). Residual patterns follow expected NB behaviour: right tail, heteroskedasticity decreasing with fitted μ, and no systematic grade/area/year structure. Autocorrelation negligible across lags. Offset treated correctly (residuals vs offset clean). In short: Model assumptions look fine; nothing invalidates inference or predictions. This is as good as one can reasonably expect from a 200k-row NB GAM with complex structure. Titles indicate specific models behind specific figures or tables and highlight model formula, family and, if present, dispersion parameter. Panel 1–2. Pearson residuals vs fitted / sqrt-residuals vs fitted: Classic NB funnel shape: residual variance compresses with increasing mean; no curvature or systematic deviation; no clumping by HOLC grade; the red dashed line is centered correctly → no bias. 3-4. Binned counts vs fitted: Points lie along the 95% envelopes except at extreme counts (>200), which is expected in NB with large city hotspots; no systematic over- or under-fitting in the low/mid ranges. 5. Normal QQ plot: NB residuals should be right-skewed; this is normal; the strong right tail is expected; no left-tail distortions; acceptable for NB GAMs. 6. Residuals vs offset: Clean; no correlation or pattern; confirms offset(log(area)) is working as intended. 7–9. Residuals vs year, area, HOLC grade: Year noisy but no long-term drift → the spline absorbed temporal trends; Area: expected decreasing variance with area (because large polygons produce higher mean → smaller Pearson residual magnitude); HOLC grade: same shape across grades; no grade-by-mean interaction leftover. 10-11. ACF & PACF: No significant autocorrelation; minor wiggles at early lags are well within bounds. 12–15. Spatial distribution maps (<0 and >0): No obvious clusters or directional gradients; positive/negative residuals appear randomly distributed; no spatial violation; spatial autocorrelation (Moran’s I) = −0.043, p = 1; no global spatial autocorrelation. 14. Dispersion summary: Pearson dispersion = 0.886 (slightly < 1) → mild underdispersion.NB fits are designed for overdispersion; slight underdispersion means the NB family is conservative; No risk of inflated false positives.
-
 #' The model formula consits of the model type (lm - linear model, glm - generalised linear model, lmer - linear mixed-effect model, glmer - generalised linear mixed-effect model, TODO:PETO add the rest), the response (left of ~), predictors (right of ~) with predictors in paranthesis indicating random effects, the predictors without paranthesis fixed effects. Random effects left of '|' are randome slopes, right of '|' are random intercepts. Explicitly nested random intercepts are separated by '/'. 'scale' indicates z-transformation whereas log (in R) means natural logarithm. TODO: PETO check and add if something is missing
 #' 
 #' ## Fig 1 - Sampled yes or no
 #' Below diagnostics of binomial models (Pearson residuals, binned fits, QQ-plots, partial autocorrelation, and spatial semivariogram) indicate good fit and no substantial temporal or spatial autocorrelation (Moran’s I ≈ 0). Pearson dispersion ≈ 0.6 suggested mild underdispersion, which makes inference conservative rather than inflated, which is desired. Gaussian mixed models, despite non-normal residuals, yielded consistent effect directions and magnitudes compared to binomial models (see Fig. 1), supporting the robustness of the main results (cf. Knief & Forstmeier 2021).
 #'   
 #' ### binomial
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_1i.png"))
+rm(list=setdiff(ls(), c("holc_pal"))); invisible(gc())
+
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_1i.png"))
 #'  
 #' ### gaussian
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/gaus_Fig_1i.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "gaus_Fig_1i.png"))
 
 #' ## Fig. 2 - Sampling density
 #' Across all model structures, the below diagnostics confirmed that the Negative Binomial models of record counts with offset(log area km²) provided a much better fit than Gaussian log-rate formulations. Residuals showed no systematic mean–variance relationship, dispersion values (~2–4) indicated acceptable extra-Poisson variation, and Moran’s I and PACF tests revealed no spatial or temporal autocorrelation. Normal QQ plots displayed only mild right-tail deviations expected for count data with a few extreme observations. 
@@ -4190,84 +5049,84 @@ model_comp %>%
 #' 
 #' ### Gaussian models of ln-transformed sampling density excluding zeros
 # sampling density non-zero; log(sempling density) as response; Gaussian
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_2i.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_2i.png"))
 #'  
 #' ### Gaussian models a small data-derived offset of 0.125 added to the sampling density (including zeros) before ln-transformation 
 # sampling density including-zero; log(sempling density + 0.125) as response; Gaussian
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/a_Fig_2i.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "a_Fig_2i.png"))
 #'
 #' ### Negative-binomial count models ln(area km²) offset
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/r_Fig_2i.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "r_Fig_2i.png"))
 #' 
 
 #' ## Fig 3 - Completeness of sampling
 #' The plots of model assumptions reveal that the replicated models are statistically sound, well behaved, and reproduce the expected ecological trend. The diagnostics show no major violations, only mild heteroscedasticity consistent with percentage data. The elevated dispersion (≈ 400–480) stems from the 0–100 % response scale and is therefore not problematic. The comparison indicates that our implementation reduces potential bias from omitted variables and yields more reliable estimates of completeness disparities across HOLC grades.
 #' 
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3f.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3g.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3h.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_3i.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3g.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3h.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_3i.png"))
 
 #' ## Table S1
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1a_correct_data.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1a_multiplied_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1a_correct_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1a_multiplied_data.png"))
 
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1b_correct_data.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1b_multiplied_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1b_correct_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1b_multiplied_data.png"))
 
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1c_correct_data.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1c_multiplied_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1c_correct_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1c_multiplied_data.png"))
 
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1d_correct_data.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Table_S1d_multiplied_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1d_correct_data.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Table_S1d_multiplied_data.png"))
 
 
 #' ## Figure Z1 & Z2
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2000-2020_f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2000-2020_f.png"))
 
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_a.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_b.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_c.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_d.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_e.png"))
-knitr::include_graphics(here::here("Output/Model_ass/Fig_Z1_2010-2020_f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_Z1_2010-2020_f.png"))
 
 #' ## Figure BAM
-knitr::include_graphics(here::here("Output/Model_ass/Fig_bam-nb.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_bam-nb.png"))
 
 #' ***
 #' # References 
@@ -4278,8 +5137,8 @@ knitr::include_graphics(here::here("Output/Model_ass/Fig_bam-nb.png"))
 #' # Session info  
 #' <br>
 #' 
-#' <a name="T_S2">
-#' **Table S2 | System session info.** </a>
+#' <a name="T_S3">
+#' **Table S3 | System session info.** </a>
 df_session_platform <- devtools::session_info()$platform %>%
     unlist(.) %>%
     as.data.frame(.) %>%
