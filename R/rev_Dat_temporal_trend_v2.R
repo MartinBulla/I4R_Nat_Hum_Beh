@@ -91,11 +91,11 @@ for(k in seq_along(u)) {
   d[ ,lon:= decimalLongitude] # taking one lon value out of all
   d[, id2 :=paste(city_state, holc_id)] # create unique ID
 
-  # save all observations
+  # save all individual observations
   if(save_all) {
     d0 = d[, .(city_state, city, state, year, id, id2, holc_polygon, holc_grade, lat, lon, species, family, genus)] # unique lat/lon per observation
     exists <- file.exists('Data/MaPe/mape_DAT_all.csv')
-    fwrite(d0, file = 'Data/MaPe/mape_DAT_all.csv', append = exists, col.names = !exists) #corresponds to the author's R1_biodiv_trend_by_time_holc_id_1933_2022.csv, but contains year and km2
+    fwrite(d0, file = 'Data/MaPe/mape_DAT_all.csv', append = exists, col.names = !exists) 
   }
 
   # count per year and polygon (note that some ebird records have atlas data)
@@ -104,8 +104,8 @@ for(k in seq_along(u)) {
 
   dd = d[, list(sum_bird_obs = length(species)), by = list(city_state, city, state, year, id, holc_polygon, holc_grade, lat, lon)]
   
-  exists1 <- file.exists('Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv')
-  fwrite(dd, file = 'Data/MaPe/2025-11-12_mape_num-of-obs_by_grade_year_polygon.csv', append = exists1, col.names = !exists1)   
+  exists1 <- file.exists('Data/MaPe/DAT_obs_year_polygon.csv')
+  fwrite(dd, file = 'Data/MaPe/DAT_obs_year_polygon.csv', append = exists1, col.names = !exists1)   
 
   # 2000-2020 count per year, data source and polygon (note that some ebird records have atlas data)
   b =d[year >= 2000 & year <= 2020]  
@@ -114,8 +114,8 @@ for(k in seq_along(u)) {
   b[!collectionCode%in%c('ebird','iNaturalist'), collectionCode:='other']
   
   bb = b[, list( sum_bird_obs = length(species)), by = list(city_state, city, state, year, collectionCode, id, holc_polygon, holc_grade, lat, lon)]  
-  exists2 <- file.exists('Data/MaPe/2025-11-12_mape_num-of-obs_by_year_data-source_polygon.csv')
-  fwrite(bb, file = 'Data/MaPe/2025-11-12_mape_num-of-obs_by_year_data-source_polygon.csv', append = exists2, col.names = !exists2)  
+  exists2 <- file.exists('Data/MaPe/DAT_obs_year_polygon_source.csv')
+  fwrite(bb, file = 'Data/MaPe/DAT_obs_year_polygon_source.csv', append = exists2, col.names = !exists2)  
   #write.table(dd, file = "Data/MaPe/Mape_R1_biodiv_sum_bird_obs_by_holc_id_year_data-source.csv", append = T, row.names = F, col.names = F, sep = ",") 
 }
 close(pb)
