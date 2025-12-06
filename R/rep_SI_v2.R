@@ -28,7 +28,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)
 #' 
 #' Scripts generating the outputs of this html are available upon clicking the `code` button at the top right above each display item!
 #' 
-#' ### Content of the repository
+#' ### **Content of the repository**
 #' [The current supporting information](https://martinbulla.github.io/I4R_Nat_Hum_Beh/)  
 #'  
 #' [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/original_paper/) folder contains files (for the sake of reproducibility) from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) in subfolders `Data` and `Code` (both two with the file structure as provided by the authors), the original downloaded `Data_Code.zip`, and the original publication with its supplement in the subfolder `Paper`
@@ -1519,7 +1519,7 @@ tab_s1 %>%
 
 #+ f_S1, fig.width=10*0.393701, fig.height=15*0.393701 
 
-temporal_2000_2020 = read.table(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv'), header= T,sep=',') 
+temporal_2000_2020 = read.table('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv', header= T,sep=',') 
 names(temporal_2000_2020) <- c('Type', 'Sum', 'holc_polygon_id')
 temporal_2000_2020$holc_grade = substr(sub(".*?_", "", (sub("_.*?", "", sub("_.*?", "", temporal_2000_2020$holc_polygon_id))) ), 1,1) # 2 holc polygons need to be correctly labeled based on the previous regex. These are all HOLC B polygons
 temporal_2000_2020 = data.table(temporal_2000_2020)
@@ -1584,6 +1584,7 @@ other_sampling_density_plot = other_sum %>%
 
 ebird_sampling_density_plot / inat_sampling_density_plot / other_sampling_density_plot
 
+#' 
 #' We initially could not fully reproduce (i) Table 1 because the uthe best model was to be shown, but the model behind the plot was not the best one according to AIC-selection found in the script, and (ii) Table S4 because the model description did not match the script and the underlying data were accidentally multiplied (our Table S3, see ‘d’ for output matching authors’ Table S4). (iii) The latter obscured the reproducibility also of Fig. 4 (see next). 
 #' 
 #' ## Coding error
