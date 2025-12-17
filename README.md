@@ -7,7 +7,7 @@ When using this content **PLEASE CITE** the [to be posted paper]() and this repo
 ### **Content**
 [Supplement with code](https://martinbulla.github.io/I4R_Nat_Hum_Beh/)  
 
-[original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/original_paper/) folder contains files from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) in subfolders `Data` and `Code` (both with the file structure as provided by the authors), the original downloaded `Data_Code.zip`, and the original publication with its supplement in subfolder `Paper`,  
+[original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/original_paper/) folder contains the original publication with its supplement in the subfolder `Paper`, and the original downloaded `Data_Code.zip` from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) - to use our scripts unzip and move the subfolders `Data` and `Code` (both two with the file structure as provided by the authors) into original_paper folder.   
 
 [Data](https://github.com/MartinBulla/avian_FID_covid/tree/main/Data/) stores furher data in folders:
 - [provided](https://github.com/MartinBulla/avian_FID_covid/tree/main/Data/provided/) additional data shared by the authors upon the request from The Institute for Replication
@@ -18,7 +18,7 @@ When using this content **PLEASE CITE** the [to be posted paper]() and this repo
 - [rep_SI_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rep_SI_v2.R) contains all scripts used to generate the paper outputs, including the display items  
 - [rev_Dat_temporal_trend_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rev_Dat_temporal_trend_v2.R) is an adjusted author's script that saves the # of sampling observations per each polygon and year   
 
-[Outputs](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/) - separate files of all outputs used in our manuscript and supplement, containing also [Model_ass](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/Model_ass) folder with model assumptions of all models that we fitted
+[Outputs](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/) - separate files of all outputs used in our manuscript and supplement, containing also [Model_ass](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/Model_ass) folder with model assumptions of all models that we fitted.
  
 [LICENSE](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/LICENSE): terms of reuse - applicable only after this work is published as a preprint or in a scientific journal, until then the data are not available for reuse.
 

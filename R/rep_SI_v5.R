@@ -33,7 +33,7 @@ knitr::opts_chunk$set(
 #' ### Content of the repository
 #' [The current supporting information](https://martinbulla.github.io/I4R_Nat_Hum_Beh/)  
 #'  
-#' [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/original_paper/) folder contains files (for the sake of reproducibility) from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) in subfolders `Data` and `Code` (both two with the file structure as provided by the authors), the original downloaded `Data_Code.zip`, and the original publication with its supplement in the subfolder `Paper`
+#' [original_paper](https://github.com/MartinBulla/avian_FID_covid/tree/main/original_paper/) folder contains the original publication with its supplement in the subfolder `Paper`, and the original downloaded `Data_Code.zip` from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) - to use our scripts unzip and move the subfolders `Data` and `Code` (both two with the file structure as provided by the authors) into original_paper folder. 
 #'  
 #' [Data](https://github.com/MartinBulla/avian_FID_covid/tree/main/Data/) stores further data in folders:
 #' - [provided](https://github.com/MartinBulla/avian_FID_covid/tree/main/Data/provided/) with additional data shared by the authors upon the request from The Institute for Replication  
@@ -44,7 +44,7 @@ knitr::opts_chunk$set(
 #' - [rep_SI_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rep_SI_v2.R) contains all scripts used to generate the paper outputs, including the display items  
 #' - [rev_Dat_temporal_trend_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rev_Dat_temporal_trend_v2.R) is an adjusted author's script that saves the # of sampling observations per each polygon and year  
 #' 
-#' [Outputs](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/) - separate files of all outputs used in our manuscript and supplement, containing also [Model_ass](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/Model_ass) folder with model assumptions of all models that we fitted
+#' [Outputs](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/) - separate files of all outputs used in our manuscript and supplement, containing also [Model_ass](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/Model_ass) folder with model assumptions of all models that we fitted.
 #'
 #' [LICENSE](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/LICENSE): terms of reuse - applicable only after this work is published as a preprint or in a scientific journal, until then the data are not available for reuse.
 #  
@@ -1468,9 +1468,9 @@ dispar2 = round((((dd[year%in%c(2020) &  holc_grade%in%c('A'), sampling_density]
 #' Based on their results, the authors then claim that "historically redlined neighbourhoods remain the most undersampled urban areas for bird biodiversity today, potentially impacting conservation priorities and propagating urban environmental inequities" (main text, p. 1870), and that this disparity in sampling “increased by 35.6% over the past 20 years” [@ellis-soto_historical_2023, abstract, p. 1869]. 
 #'  
 #' ## Data  
-#' The authors obtained 12,297,506 georeferenced observations of birds (class Aves) occurring within 9,851 HOLC-defined neighbourhoods in 202 cities. Note that in the paper authors reported 195 cities because they accidentally considered the same cities those having the same-name but occurring in different-state as the same cities. The bird observations were retrieved from [Global Biodiversity Information Facility](https://www.gbif.org/), spanning observations collected after HOLC’s categories were mapped (1933 up to October 2022), with major contributions from two citizen science databases [eBird](https://ebird.org/home) and [iNaturalist](https://www.inaturalist.org/). Historical neighbourhood polygons came from the [Mapping Inequality project](https://dsl.richmond.edu/panorama/redlining/). The authors then created three key response variables: (1) Neighborhood sampled at all (yes or no), (2) sampling density (neighbourhood's density of bird observations per km²), and (3) survey completeness (% of observed species richness relative to the expected species richness. 
+#' The authors obtained 12,297,506 georeferenced observations of birds (class Aves) occurring within 9,851 HOLC-defined neighbourhoods in 202 cities. Note that in the paper authors reported 195 cities because they accidentally considered the same cities those having the same-name but occurring in different-state as the same cities. The bird observations were retrieved from [Global Biodiversity Information Facility](https://www.gbif.org/), spanning observations collected after HOLC’s categories were mapped (1933 up to October 2022), with major contributions from two citizen science databases [eBird](https://ebird.org/home) and [iNaturalist](https://www.inaturalist.org/). Historical neighbourhood polygons came from the [Mapping Inequality project](https://dsl.richmond.edu/panorama/redlining/). The authors then created three key response variables: (1) Neighbourhood sampled at all (yes or no), (2) sampling density (neighbourhood's density of bird observations per km²), and (3) survey completeness (% of observed species richness relative to the expected species richness. 
 #' 
-#' The authors also extract the following present-day covariates for each neighborhood: population density (km²) derived by areal interpolation from the 2013–2017 American Community Survey [@goodchild1993], area covered by parks (%, based on PAD-US and as a proxy for shared open scape) [@usgs2021], a composite Landsat Normalized Difference Vegetation Index (2014–2019) built in Google Earth Engine (as a proxy for greenness). The authors also calculated mean annual precipitation and temperature for each city using monthly averages from 1979 to 2013 at 1-km² resolution [@karger2017].
+#' The authors also extract the following present-day covariates for each neighborhood: population density (km²) derived by areal interpolation from the 2013–2017 American Community Survey [@goodchild1993], area covered by parks (%, based on PAD-US and as a proxy for shared open scape) [@usgs2021], a composite Landsat Normalized Difference Vegetation Index (2014–2019) built in [Google Earth Engine](https://earthengine.google.com/) (as a proxy for greenness). The authors also calculated mean annual precipitation and temperature for each city using monthly averages from 1979 to 2013 at 1-km² resolution [@karger2017].
 #' 
 #' ***
 #' 
@@ -1522,7 +1522,7 @@ tab_s1 %>%
 #' ***
 #' 
 #' <a name="T_S2">
-#' **Table S2 | Replicated Table S2, with correct sub-panel labels, containing the initially missing subpanel for sampling completeness .** </a>  
+#' **Table S2 | Replicated Table S2, with correct sub-panel label.** </a>  
 
 samp_d_binary_holc_rirs = lme4::glmer(sample_binary ~ holc_grade + 
         (holc_grade | msa_NAME),
@@ -1544,85 +1544,13 @@ tab_model(d_fe_rirs, transform = 'exp')
 
 #'  
 #' <br>
-#' 
-#' We reproduced  Fig. S2 only partially because the HOLC grade bars in the iNaturalist subpanel differed from those regenerated from the provided script (our Fig. S1).
-
-#+ f_S1, fig.width=10*0.393701, fig.height=15*0.393701 
-
-temporal_2000_2020 = read.table(here::here('original_paper/Data/Biodiv_Greeness_Social/R1_biodiv_col_code_by_holc_id_2000_2020.csv'), header= T,sep=',') 
-names(temporal_2000_2020) <- c('Type', 'Sum', 'holc_polygon_id')
-temporal_2000_2020$holc_grade = substr(sub(".*?_", "", (sub("_.*?", "", sub("_.*?", "", temporal_2000_2020$holc_polygon_id))) ), 1,1) # 2 holc polygons need to be correctly labeled based on the previous regex. These are all HOLC B polygons
-temporal_2000_2020 = data.table(temporal_2000_2020)
-temporal_2000_2020 = temporal_2000_2020[holc_grade %in% c('A', 'B', 'C', 'D')]
-
-ebird  = temporal_2000_2020 %>% filter(Type =='ebird')
-ebird_sum = ebird[,.(n_obs = sum(Sum)), by = list(holc_grade)]
-ebird_sum = left_join(ebird_sum, holc_area_sum_a_dt)
-ebird_sum[, sampling_density := n_obs/sum_area_holc_km2]
-
-inat = temporal_2000_2020 %>% filter(Type =='iNaturalist')
-inat_sum = inat[,.(n_obs = sum(Sum)), by = list(holc_grade)]
-inat_sum = left_join(ebird_sum, holc_area_sum_a_dt)
-inat_sum[, sampling_density := n_obs/sum_area_holc_km2]
-
-other = temporal_2000_2020 %>% filter(Type =='other')
-other_sum = other[,.(n_obs = sum(Sum)), by = list(holc_grade)]
-other_sum = left_join(ebird_sum, holc_area_sum_a_dt)
-other_sum[, sampling_density := n_obs/sum_area_holc_km2]
-
-ebird_sampling_density_plot = ebird_sum %>%
-  ggplot(aes(holc_grade, sampling_density, fill = holc_grade)) +
-  geom_col() + 
-  scale_fill_manual(values = holc_pal) + 
-  theme_bw(16) + 
-  theme_classic(16) +
-  labs(title='eBird') + 
-  theme(legend.position = 'none') + 
-  ylab('Sampling density in 1km^2') +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.title.y=element_blank(),
-  )
-
-inat_sampling_density_plot = inat_sum %>%
-  ggplot(aes(holc_grade, sampling_density, fill = holc_grade)) +
-  geom_col() + 
-  scale_fill_manual(values = holc_pal) + 
-  theme_bw(16) + 
-  theme_classic(16) +
-  labs(title='iNaturalist') + 
-  theme(legend.position = 'none') + 
-  ylab('Sampling density in 1km^2') +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank()
-  )
-
-
-other_sampling_density_plot = other_sum %>%
-  ggplot(aes(holc_grade, sampling_density, fill = holc_grade)) +
-  geom_col() + 
-  scale_fill_manual(values = holc_pal) + 
-  theme_bw(16) + 
-  theme_classic(16) +
-  labs(title='Other') + 
-  theme(legend.position = 'none') + 
-  ylab('Sampling density in 1km^2') +
-  xlab('HOLC Grade') +
-  theme(
-    axis.title.y=element_blank(),
-  ) 
-
-ebird_sampling_density_plot / inat_sampling_density_plot / other_sampling_density_plot
-
-#' <a name="F_S1">
-#' **Figure S1</a> | Replication of authors' Fig. S2.** Note that A and B in the iNaturalist panel is different.
 #'  
 #' ***
 #' 
 #' We initially could not fully reproduce (i) Table 1 because the best model was indicated to be shown, but the model behind the plot was not the best one according to AIC-selection found in the script, and (ii) Table S4 because the model description did not match the script and the underlying data were accidentally multiplied (our Table [S3](#T_S3), see ‘d’ for output matching authors’ Table S4). (iii) The latter obscured the reproducibility also of Fig. 4 (see next). 
 #' 
 #' ## Coding error
-#' The major coding error that we found in the authors' script preparing temporal trend data (`T04_R4_uneven_biodiversity_data_2023.R`, section *[7] Plot temporal trends 1933-2022 and 2000-2020*) unintentionally multiplied the dataset (our Fig. [S2](#F_S2)). Hence, Fig. 4 and Table S4, and thus likely the 35.6% claim, did not depict the actual data (see our Fig. [S3](#F_S3) and Table [S3](#T_S3)). 
+#' The major coding error that we found in the authors' script preparing temporal trend data (`04_R4_uneven_biodiversity_data_2023.R`, section *[7] Plot temporal trends 1933-2022 and 2000-2020*) unintentionally multiplied the dataset (our Fig. [S1](#F_S1)). Hence, Fig. 4 and Table S4, and thus likely the 35.6% claim, did not depict the actual data (see our Fig. [S2](#F_S2) and Table [S3](#T_S3)). 
 #' 
 #' Initially, we struggled to reproduce Fig. 4. The output that resembles Fig. 4 is located in two scripts, each yielding different results. 
 #'
@@ -1686,10 +1614,10 @@ plot_layout(guides = "collect", axis_titles = 'collect') #; ggsave('Output/Fig_r
 #' 
 #' ***
 #' 
-#' (b) We then found that the code `04_R4_uneven_biodiversity_data_2023.R` contains section *[7] Plot temporal trends 1933-2022 and 2000-2020*. The script was not initially running due to absolute folder assignments that were unintuitive regarding the location of the files. We searched for the required files (`R1_biodiv_col_code_by_holc_id_2000_2020.csv` and `R1_biodiv_trend_by_time_holc_id_1933_2022.csv`) among the folders provided by the authors and respecified the folder paths. In addition, the original script loaded packages with conflicting functions. To smoothly reproduce the code, we thus made a new script where we loaded only the relevant packages and only the relevant data. Then the script, thought to generate Fig. 4, run without issues. However, none of the outputs (our Fig. [S3](#F_S3)) resembls the one from the authors' Fig. 4.<br><br>We later found out that the complex coding, along with the conflicting R-packages multiplied the number of observations (our Fig. [S2](#F_S2) below) and only such data produced the authors' Fig. 4. Specifically, the convoluted chunk of code in `04_R4_uneven_biodiversity_data_2023.R` (L410-20) produces the correct dataset, only if `plyr` R-package is not loaded. When the `plyr` package is loaded in R, the code multiplies the number of observations so that summing of all observation per HOLC grade and year (cumsum_n_obs) gives about 7 times more observations than the actual number of observations and hence sampling densities per km² are high. By fixing the error, we regenerated temporal trends, including Fig. 4 (corresponding to Fig. [S3](#F_S3) C and D), in a way that reflects the underlying data. Note that in the initial Fig. 4, the plotted lines just connected the data points (our Fig. [S3](#F_S3) A), but fitting a line through the data  produces a more realistic picture (our Fig. [S3](#F_S3) B; albeit here using only ocally estimated scatterplot smoothing, while using model predictions would be more fitting - see later.
+#' (b) We then found that the code `04_R4_uneven_biodiversity_data_2023.R` contains section *[7] Plot temporal trends 1933-2022 and 2000-2020*. The script was not initially running due to absolute folder assignments that were unintuitive regarding the location of the files. We searched for the required files (`R1_biodiv_col_code_by_holc_id_2000_2020.csv` and `R1_biodiv_trend_by_time_holc_id_1933_2022.csv`) among the folders provided by the authors and respecified the folder paths. In addition, the original script loaded packages with conflicting functions. To smoothly reproduce the code, we thus made a new script where we loaded only the relevant packages and only the relevant data. Then the script, thought to generate Fig. 4, run without issues. However, none of the outputs (our Fig. [S2](#F_S2)) resembles the one from the authors' Fig. 4.<br><br>We later found out that the complex coding, along with the conflicting R-packages multiplied the number of observations (our Fig. [S1](#F_S1) below) and only such data produced the authors' Fig. 4. Specifically, the convoluted chunk of code in `04_R4_uneven_biodiversity_data_2023.R` (L410-20) produces the correct dataset, only if `plyr` R-package is not loaded. When the `plyr` package is loaded in R, the code multiplies the number of observations so that summing of all observation per HOLC grade and year (cumsum_n_obs) gives about 7 times more observations than the actual number of observations and hence sampling densities per km² are high. By fixing the error, we regenerated temporal trends, including Fig. 4 (corresponding to Fig. [S2](#F_S2) C and D), in a way that reflects the underlying data. Note that in the initial Fig. 4, the plotted lines just connected the data points (our Fig. [S2](#F_S2) A), but fitting a line through the data  produces a more realistic picture (our Fig. [S2](#F_S2) B; albeit here using only locally estimated scatterplot smoothing, while using model predictions would be more fitting - see later).
 #'  
 
-#+ f_S2, fig.width=20*0.393701,fig.height=8*0.393701 
+#+ F_S1, fig.width=1.1*20*0.393701,fig.height=1.1*8*0.393701 
 
 holc_area = copy(holc_area_sum_b)
 setnames(holc_area, 'sum_area_holc_km2', 'area_sum')
@@ -1767,10 +1695,10 @@ ggplot(ok, aes(x = sampling_density_ok, y = sampling_density_mul, col = holc_gra
 
 (cor_a | cor_b) + plot_layout(guides = "collect")#ggsave('Output/Fig_check_wrong_data.jpg', width= 23, height = 10, units ='cm') 
 
-#' <a name="F_S2">
-#' **Figure S2</a> | Relationship between the correct dataset and authors' accidentally multiplied one.** Each point represents # of observations (A) and sampling density in km² (B) per HOLC grade and year, point colour indicates HOLC grade. Dotted line indicates unity - same value for true and authors' data. 
+#' <a name="F_S1">
+#' **Figure S1</a> | Relationship between the correct dataset and authors' accidentally multiplied one.** Each point represents # of observations (A) and sampling density in km² (B) per HOLC grade and year, point colour indicates HOLC grade. Dotted line indicates unity - same value for true and authors' data. 
 #'  
-#+ f_S3, fig.width=20/2.5,fig.height=15/2.5 
+#+ F_S2, fig.width=20/2.5,fig.height=15/2.5 
 # b) 
 # prepare panels A and B with the original figure 
 r_f4_A =
@@ -1887,16 +1815,16 @@ ggdraw(xlim = c(-0.03, 1), ylim = c(-0.03, 1)) +
   draw_label("Year", x = 0.5, y = -0.03, vjust = -1, size = 11) +
   draw_label('Sampling density\n [bird observations per 1km²]', x = -0.04, y = 0.5, angle = 90, vjust = 1.5, size = 11)#; ggsave('Output/Fig_rFig4_abcd_circle.jpg', width= 20, height = 15, units ='cm') 
 
-#' <a name="F_S3">
-#' **Figure S3</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations divided by the total area for the given grade). Lines in the left panels connect the points, in the right panels represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represents the accidently multiplied observations used by the author's, bottom row the correct number of observations.  
+#' <a name="F_S2">
+#' **Figure S2</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations divided by the total area for the given grade). Lines in the left panels connect the points, in the right panels represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Top row represents the accidentaly multiplied observations used by the author's, bottom row the correct number of observations.  
 #' 
 #' ***
 #' 
-#' The corrected figures, we have generated, shows that (i) sampling for all categories was similar until ±2010, then (ii) the differences in sampling between categories likely increased, but later (iii) leveled off. Note however, that such differences are easier to see if we plot the sampling densities of two categories against each other (our Fig. [S4](#F_S4)) or relative and absolute difference (see section two on *Temporal trends* below). Note, however that the plots (our Fig. [S4](#F_S4)) are senstitive to the aggregation metric.
+#' The corrected figures, we have generated, shows that (i) sampling for all categories was similar until ±2010, then (ii) the differences in sampling between categories likely increased, but later (iii) leveled off. Note however, that such differences are easier to see if we plot the sampling densities of two categories against each other (our Fig. [S3](#F_S3)) or relative and absolute difference (see section two on *Temporal trends* below). Also note that the plots (our Fig. [S3](#F_S3)) are senstitive to the aggregation metric.
 #' 
 #' ***
 #'  
-#+ F_S4, fig.width=21*0.393701,fig.height=14*0.393701
+#+ F_S3, fig.width=21*0.393701,fig.height=14*0.393701
 # all pairwise combinations you want
 pairs <- data.table(
   x = c("D","D","D","C","C","B"),
@@ -1926,14 +1854,14 @@ ggplot(plotdat[year >= 2000 & year <= 2020], aes(sampling_density.x, sampling_de
     strip.text = element_text(color = "black") # make labels black
   ) #; ggsave('Output/Fig_r4_alternative_new.jpg', width= 21, height = 14, units ='cm')  
 
-#' <a name="F_S4">
-#' **Figure S4</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations per divided by the total a for the given grade) with the year indicated for some of those. Red lines with shaded area represent local regression non-parametric smoothing with its 95% confidence intervals. Dotted line indicates unity, i.e. point on the line highlights the same sampling density, above the line higher sampling for y and below the line higher sampling for x.
+#' <a name="F_S3">
+#' **Figure S3</a> | Change in sampling density between HOLC grades over time.** Each point represents sampling density per HOLC grade and year (sum of all observations per divided by the total a for the given grade) with the year indicated for some of those. Red lines with shaded area represent local regression non-parametric smoothing with its 95% confidence intervals. Dotted line indicates unity, i.e. point on the line highlights the same sampling density, above the line higher sampling for y and below the line higher sampling for x.
 #'
 #' ***
 #'   
-#' These figures highlights the effects discussed by the authors. The figures shows that 2020 might be an off year (e.g. due to COVID-19-restrictions driven increase in human presence in urban parks), an increase around 2010 (e.g. due to introduction of smarthpones)and that disparity remained (did not increase much after). However, these results depend on the aggregation metric (our Fig. (4)[4]) and same as the author's intended Fig. 4, the aggregations do not account for spatial and temporal non-independence of data points and/or confounding factors. 
+#' These figures highlight the effects discussed by the authors. The figures shows that 2020 might be an off year (e.g. due to COVID-19-restrictions driven increase in human presence in urban parks), an increase around 2010 (e.g. due to introduction of smarthpones)and that disparity remained (did not increase much after). However, these results depend on the aggregation metric (our Fig. [4](#F_4)) and same as the author's intended Fig. 4, the aggregations do not account for spatial and temporal non-independence of data points and/or confounding factors. 
 #' 
-#' We also struggled with generating the results found in Table S4. The authors' scripts contained models where sampling density was not log-transformed, whereas the description of the authors' Table S4 indicated log-transformation (throughout log refers to ln). Using log-transformed sampling density and multiplied dataset did produce the outcome found in authors' Table S4 (see below Table [S3](T_S3)). It is however unclear why the generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used). 
+#' We also struggled with generating the results found in authors' Table S4. The authors' scripts contained models where sampling density was not log-transformed, whereas the description of the authors' Table S4 indicated log-transformation (throughout log refers to ln). Using log-transformed sampling density and multiplied dataset did produce the outcome found in authors' Table S4 (see below Table [S3](T_S3)). It is however unclear why the generalised additive model was used as no wave form was fitted (i.e. simple Gaussian model was used). 
 #' 
 #' <br>
 #'    
@@ -2037,8 +1965,6 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' <br>
 #' 
-#' TODO: **Is that enough or we need to add here other essential computation reproducibility issues!** 
-#' 
 #' ***
 #' 
 #' <br>
@@ -2070,7 +1996,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' 7. ~ HOLC grade + NDVI + open space + population density + (1 + HOLC grade + msa_gini | metropolitan area) + (1 + temperature : precipitation | city)  
 #'  
-#' This model resembles a model described in the Methods, i.e. model (6) above, but with essential nuance: two random slopes are fitted within the metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents the Gini index of household income inequality at the level of metropolitan area (having the same n as metropolitan area). Given that `msa_gini` has the same number of levels as metropolitan area, `msa_gini` cannot be fitted as random slope within the metropolitan area, i.e. the model is misspecified. The model sets for the other two responses suffer from similar issues (e.g. `msa_medhhincE` random slope is not defined in the main text and has lower number of unique values than the metropolitan area within which it was fitted; similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations)).
+#' This model resembles a model described in the Methods, i.e. model (6) above, but with essential nuance: two random slopes are fitted within the metropolitan area, one of which, `msa_gini`, is nowhere defined. We speculate that `msa_gini` represents the Gini index of household income inequality at the level of metropolitan area. Given that `msa_gini` has the same number of levels as metropolitan area, `msa_gini` cannot be fitted as random slope within the metropolitan area, i.e. the model is misspecified. The model sets for the other two responses suffer from similar issues (e.g. `msa_medhhincE` random slope is not defined in the main text and has lower number of unique values than the metropolitan area within which it was fitted; similarly, interaction of temperature and precipitation as random slope within city has only within city-specific values (combinations)).
 #'  
 #' The script contains 10 - 12 models for sampling density and 10 models for sampling completeness. The authors nowhere justify the need for specifying their complex random structures and comparing so many models [@whittingham2006; @forstmeier2011; @cade2015].
 #' <br>
@@ -2504,7 +2430,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #'  
 #' Adding only a neighbourhood-area control reduced the apparent A–D difference, indicating that part of the original HOLC effect reflected varying polygon sizes rather than true sampling bias. However, when we also included covariates (NDVI, protected area %, population density, climate), the A–D contrast strengthened again, suggesting that ecological context had masked some of the pattern in simpler models. Both the area control and covariates stabilize estimates while preserving their direction and approximate magnitude.
 #'  
-#' In sum, the authors’ original results (red) appear less extreme (closer to zero), suggesting that their omission of control variables conflated spatial or ecological bias with HOLC grade category.
+#' In the Gaussian models, the authors’ original results (red) appear less extreme (closer to zero), suggesting that their omission of control variables conflated spatial or ecological bias with HOLC grade category.
 #'
 #' <br> 
 #' 
@@ -3310,13 +3236,13 @@ theme(
 #' 
 #' ### i. & ii. Disparity claim and trend visualisation
 #' 
-#' We did not find the code generating the 35.6% claim (Abstract p. 1869, Results p. 1871), hence could only speculate how this was calculated. We suspect that the authors used the yearly sampling density (total observations per year divided by total HOLC-grade area; data behind our Fig. S3 C and D) as that is the only temporal data we found. 
+#' We did not find the code generating the 35.6% claim (Abstract p. 1869, Results p. 1871), hence could only speculate how this was calculated. We suspect that the authors used the yearly sampling density (total observations per year divided by total HOLC-grade area; data behind our Fig. S2 C and D) as that is the only temporal data we found. 
 #' 
-#' Using the yearly sampling density metric and calculating the ratio between grade A and D (A/D) for 2000 and for 2020 generated a different result (`r dispar`%). This result seems to reflect the one (~40%) from the authors' Fig. 4 legend. Importantly, plotting such disparity reveals non-linear temporal trends, with zero or even opposite disparities (our Fig. [4](#F_4), [S5](#F_S5)). Moreover, the choice of metric matters because different metrics reflect different underlying sampling mechanisms.
+#' Using the yearly sampling density metric and calculating the ratio between grade A and D (A/D) for 2000 and for 2020 generated a different result (`r dispar`%). This result seems to reflect the one (~40%) from the authors' Fig. 4 legend. Importantly, plotting such disparity reveals non-linear temporal trends, with zero or even opposite disparities (our Fig. [4](#F_4), [S4](#F_S4)). Moreover, the choice of metric matters because different metrics reflect different underlying sampling mechanisms.
 #' 
-#' Disparity between HOLC grades A and D can be decomposed into two mechanisms: (1) the probability that a polygon is sampled at all (“coverage”), and (2) the intensity of sampling within sampled polygons. Metrics based on means or totals (especially arithmetic mean sampling density and total observations per HOLC-grade area) combine these components and are therefore sensitive to extreme high-density events (‘hotspots’) and to city-specific variation. Geometric-mean sampling density isolates the typical polygon-year by down-weighing extreme values, whereas arithmetic means emphasise rare high-density polygons. Trimming extreme hotspots (top 0.5% of polygons) visualises these issues (our Fig. [4](#F_4), [S5](#F_S5)). 
+#' Disparity between HOLC grades A and D can be decomposed into two mechanisms: (1) the probability that a polygon is sampled at all (“coverage”), and (2) the intensity of sampling within sampled polygons. Metrics based on means or totals (especially arithmetic mean sampling density and total observations per HOLC-grade area) combine these components and are therefore sensitive to extreme high-density events (‘hotspots’) and to city-specific variation. Geometric-mean sampling density isolates the typical polygon-year by down-weighing extreme values, whereas arithmetic means emphasise rare high-density polygons. Trimming extreme hotspots (top 0.5% of polygons) visualises these issues (our Fig. [4](#F_4), [S4](#F_S4)). 
 #'  
-#' Across 2000–2020, alternative metrics that represent different sampling mechanisms reveal a different picture from the original 35.6% claim (our Fig. [4](#F_4), [S5](#F_S5)). The proportion of polygons sampled shows a long-term decline in A–D disparity, while intensity among sampled polygons increases only modestly before stabilising after ~2015, far less than the increases implied by hotspot-sensitive metrics. In contrast, hotspot-sensitive metrics produce the largest apparent rise. After trimming extreme hotspots, the pronounced increase in mean-based disparities largely disappears, demonstrating that the originally reported 35.6% rise in disparity is not a stable temporal signal but an artefact of a metric disproportionately driven by a small subset of heavily sampled polygons (primarily after 2010) and by inter-annual sampling peaks, features that inflate total-area averages and occur irrespective of HOLC grade. Importantly, note the lack of absolute differences in sampling density of A and D grades until about 2010. **TODO:if A, D curves added CHANGE TOImportantly, the raw sampling densities of A and D polygons were nearly indistinguishable until about 2010.** 
+#' Across 2000–2020, alternative metrics that represent different sampling mechanisms reveal a different picture from the original 35.6% claim (our Fig. [4](#F_4), [S4](#F_S4)). The proportion of polygons sampled shows a long-term decline in A–D disparity, while intensity among sampled polygons increases only modestly before stabilising after ~2015, far less than the increases implied by hotspot-sensitive metrics. In contrast, hotspot-sensitive metrics produce the largest apparent rise. After trimming extreme hotspots, the pronounced increase in mean-based disparities largely disappears, demonstrating that the originally reported 35.6% rise in disparity is not a stable temporal signal but an artefact of a metric disproportionately driven by a small subset of heavily sampled polygons (primarily after 2010) and by inter-annual sampling peaks, features that inflate total-area averages and occur irrespective of HOLC grade. Importantly, note the lack of absolute differences in sampling density of A and D grades until about 2010 Importantly, the raw sampling densities of A and D polygons were nearly indistinguishable until about 2010 (Figs. [4](#F_4) and [S4](#F_S4)). 
 #'  
 #' Such results question the use of arbitrary, two-point (2000 and 2020) comparisons. Including pre-2000 years reveals an even more complex temporal picture, although these early data are likely less reliable because online platforms were not yet in use and earlier observations may have been added retrospectively.
 #' 
@@ -3614,9 +3540,9 @@ g_F4 = (left | plot_spacer() | right) +
 g_F4; #ggsave('Output/Fig_F4_v3.png', g_F4, units = 'cm', width = 18.75, height = 20)
 
 #' <a name="F_4">
-#' **Figure 4</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents relative difference (%; two left columns) in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; first row), mean sampling density per HOLC grade and year (second row), proportion of sampled polygons (third row) and mean sampling density across sampled polygons (i.e. excluding non-sampled ones; bottom row). The right column shows the actual values for A and D HOLC grades. Dots represent yearly values. Lines represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Color in two left columns indicates all data (black) or data with top 0.5% trimmed (red), in the right column HOLC grade. Top row represents the aggregation likely used by the authors to support their claim, the other rows the aggregation done by us. Note that the authors' dataset did not contain area per year and HOLC grade; hence, we were unable to compute the median sampling density for their dataset.
+#' **Figure 4</a> | Change in relative disparity in sampling density between HOLC grade A and D over time.** Each point represents relative difference (%; two left columns) in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; first row), mean sampling density per HOLC grade and year (second row), proportion of sampled polygons (third row) and mean sampling density across sampled polygons (i.e. excluding non-sampled ones; bottom row). The right column shows the actual values for A and D HOLC grades. Dots represent yearly values. Lines represent local regression non-parametric smoothing and shaded areas its 95% confidence intervals. Colour in two left columns indicates all data (black) or data with top 0.5% trimmed (red), in the right column HOLC grade. Top row represents the aggregation likely used by the authors to support their claim, the other rows the aggregation done by us.
 #' 
-#+ F_S5, fig.width = 31/2.5, fig.height = 25/2.5
+#+ F_S4, fig.width = 31/2.5, fig.height = 25/2.5
 left <- (
   g1a | g1b |
   g2a | g2b |
@@ -3646,25 +3572,25 @@ right <- (
   plot_layout(ncol = 1,nrow = 5,
               axis_titles = "collect") 
 
-Fig_S5 = (left | plot_spacer() | middle | plot_spacer() | right) +
+Fig_S4 = (left | plot_spacer() | middle | plot_spacer() | right) +
   plot_layout(
     widths      = c(1, 0.1, 1, 0.1, 0.4),
     axis_titles = "collect_x"   # or "collect" if you want y merged when possible
   )
-Fig_S5; #ggsave('Output/Fig_S5.png', Fig_S5, units = 'cm', width = 31, height = 25)
+Fig_S4; #ggsave('Output/Fig_S4.png', Fig_S4, units = 'cm', width = 31, height = 25)
 
-#' <a name="F_S5">
-#' **Figure S5</a> | Change in relative disparity in bird sampling between HOLC grade A and D over time.** Each point represents relative percentage difference (two left columns), absolute difference (two middle columns) in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; first row), mean sampling density per HOLC grade and year (second row), proportion of sampled polygons (third row), mean sampling density across sampled polygons (i.e. excluding non-sampled ones; fourth row) and geometric mean in sampling density (fifth row). The right column shows the actual values for A and D HOLC grades.  Dots represent yearly values (for all data: large dots; for data with top 0.5% observations trimmed: small dots . Lines represent local regression non-parametric smoothing and shaded areas 95% confidence intervals. Colour in the right column indicates all data (black) or data with top 0.5% trimmed (red), in the left column the HOLC grade category (A in green, D in red). Top row represents the aggregation likely used by the authors to support their claim about 35.6% increase, the other rows the aggregation done by us. Note that the authors' dataset did not contain area per year and HOLC grade; hence, we were unable to compute the median sampling density for their dataset.
+#' <a name="F_S4">
+#' **Figure S4</a> | Change in relative disparity in bird sampling between HOLC grade A and D over time.** Each point represents relative percentage difference (two left columns), absolute difference (two middle columns) in sampling density of A given D (with D being a baseline) based on overall sampling density (i.e. sum of all A or D observation divided by the total area of A or D; first row), mean sampling density per HOLC grade and year (second row), proportion of sampled polygons (third row), mean sampling density across sampled polygons (i.e. excluding non-sampled ones; fourth row) and geometric mean in sampling density (fifth row). The right column shows the actual values for A and D HOLC grades.  Dots represent yearly values (for all data: large dots; for data with top 0.5% observations trimmed: small dots . Lines represent local regression non-parametric smoothing and shaded areas 95% confidence intervals. Colour in the right column indicates all data (black) or data with top 0.5% trimmed (red), in the left column the HOLC grade category (A in green, D in red). Top row represents the aggregation likely used by the authors to support their claim about 35.6% increase, the other rows the aggregation done by us. Note that the authors' dataset did not contain area per year and HOLC grade; hence, we were unable to compute the median sampling density for their dataset.
 #' 
 #' ***
 #' 
-#' Importantly, the HOLC grade trends are not only volatile across methods, but also across cities (Fig. [S6](#S6), [5](#F_5)). To illustrate typical within-city sampling patterns, we classified cities as *A-skewed*, *D-skewed*, and *mixed* using the following data-driven procedure. The goal was to identify cities with **clear and stable differences** between HOLC grades while **avoiding pathological cases** dominated by single-year hotspots. For each city and year we computed the geometric mean sampling density for HOLC grades A and D separately. The geometric mean was used because it reflects the typical sampling density of polygons in a given year while down-weighting single-year outliers. For each city, we then calculated the median over years of the annual A/D ratio and used along with the temporal consistency to classify the cities:
-#' * **A-skewed:** median(A/D) > 1.5 and A > D in ≥70% of years.
-#' * **D-skewed:** median(A/D) < 2/3 and D > A in ≥70% of years.
-#' * **Mixed:** 0.75 ≤ median(A/D) ≤ 1.33 and at least one sign change (A overtakes D at least once or vice versa).
-#' * **Unclassifed:** Cities not meeting any above stability criterion.
+#' Importantly, the HOLC grade trends are not only volatile across methods, but also across cities (our Fig. [S5](#S5), [5](#F_5)). To illustrate typical within-city sampling patterns, we classified cities as *A-skewed*, *D-skewed*, and *mixed* using the following data-driven procedure. The goal was to identify cities with clear and stable differences between HOLC grades while avoiding pathological cases dominated by single-year hotspots. For each city and year we computed the geometric mean sampling density for HOLC grades A and D separately. The geometric mean was used because it reflects the typical sampling density of polygons in a given year while down-weighting single-year outliers. For each city, we then calculated the median over years of the annual A/D ratio and used along with the temporal consistency to classify the cities:  
+#' - **A-skewed:** median(A/D) > 1.5 and A > D in ≥70% of years.  
+#' - **D-skewed:** median(A/D) < 2/3 and D > A in ≥70% of years.  
+#' - **Mixed:** 0.75 ≤ median(A/D) ≤ 1.33 and at least one sign change (A overtakes D at least once or vice versa).  
+#' - **Unclassifed:** Cities not meeting any above stability criterion.  
 #'
-#' We then selected the representative examples for each category, having all years of data (Fix. [5](#F_5)), but plots of all cities are in Fig. [S6](#S6).
+#' We then selected the representative examples for each category, having all years of data (Fix. [5](#F_5)), but plots of all cities are in our Fig. [S5](#S5).
 #'
 #' ***
 #'
@@ -3908,11 +3834,11 @@ bottom = (ex_A | ex_mix | ex_D) + plot_layout(axis_titles = "collect_x")
 top / bottom
 
 #' <a name="Fig_5">
-#' **Figure 5</a> | City-level variation in sampling density and HOLC-grade skew.** **Top row**, number of cities classified as A-skewed, D-skewed, mixed, or unclassified based on arithmetic-mean (left) or geometric-mean (middle) sampling density ratios between HOLC A and D polygons. Comparison of city-level A/D ratios from geometric vs arithmetic means (right); points above the 1:1 line indicate cities where arithmetic means underestimate relative sampling advantage of A over D (A-skewed classification; typically due to strong D-grade hotspots raising the arithmetic mean for D), while points below the line indicate cities where arithmetic means overestimate A-skew (typically due to strong A-grade hotspots raising the arithmetic mean for A). Arithmetic means are highly sensitive to rare but extreme polygons (“hotspots”), and therefore reflect occasional seasonal survey bursts (e.g.  localised campaigns such as Christmas Bird Count) rather than the persistent, long-term differences in sampling between HOLC grades. Geometric means minimise outliers and capture the “typical” polygon in the “typical” year. The wide scatter around the 1:1 line shows that no single aggregation metric yields a stable across-metric classification, because hotspot influence differs strongly between metrics, thus cities frequently flip between A-skewed, mixed, and D-skewed depending on whether hotspots are emphasised (arithmetic) or down-weighted (geometric). **Bottom row**, representative example cities: A-skewed city (left), where A-grade polygons are consistently sampled more densely than D-grade polygons, mixed city (middle) with no persistent ordering between A and D grades across years, and D-skewed city (right), where D-grade polygons receive higher sampling density. Panels show raw polygon-level sampling densities (points) with LOESS trends per HOLC grade (solid lines). Cities were selected using a data-driven procedure based on the geometric mean A/D ratio (see Methods). These examples illustrate that within-city patterns vary substantially and help interpret the aggregate national-level A/D disparity trends shown in Fig. [4](#4) and [S5](#F_S5). The plots for each city are in Fig. [S6](#F_S6). 
+#' **Figure 5</a> | City-level variation in sampling density and HOLC-grade skew.** **Top row**, number of cities classified as A-skewed, D-skewed, mixed, or unclassified based on arithmetic-mean (left) or geometric-mean (middle) sampling density ratios between HOLC A and D polygons. Comparison of city-level A/D ratios from geometric vs arithmetic means (right); points above the 1:1 line indicate cities where arithmetic means underestimate relative sampling advantage of A over D (A-skewed classification; typically due to strong D-grade hotspots raising the arithmetic mean for D), while points below the line indicate cities where arithmetic means overestimate A-skew (typically due to strong A-grade hotspots raising the arithmetic mean for A). Arithmetic means are highly sensitive to rare but extreme polygons (“hotspots”), and therefore reflect occasional seasonal survey bursts (e.g.  localised campaigns such as Christmas Bird Count) rather than the persistent, long-term differences in sampling between HOLC grades. Geometric means minimise outliers and capture the “typical” polygon in the “typical” year. The wide scatter around the 1:1 line shows that no single aggregation metric yields a stable across-metric classification, because hotspot influence differs strongly between metrics, thus cities frequently flip between A-skewed, mixed, and D-skewed depending on whether hotspots are emphasised (arithmetic) or down-weighted (geometric). **Bottom row**, representative example cities: A-skewed city (left), where A-grade polygons are consistently sampled more densely than D-grade polygons, mixed city (middle) with no persistent ordering between A and D grades across years, and D-skewed city (right), where D-grade polygons receive higher sampling density. Panels show raw polygon-level sampling densities (points) with LOESS trends per HOLC grade (solid lines). Cities were selected using a data-driven procedure based on the geometric mean A/D ratio (see Methods). These examples illustrate that within-city patterns vary substantially and help interpret the aggregate national-level A/D disparity trends shown in Fig. [4](#4) and [S4](#F_S4). The plots for each city are in our Fig. [S5](#F_S5). 
 #'
 #' ***
 #'  
-#+ F_S6a, fig.width = 20/2.5, fig.height = 22/2.5
+#+ F_S5a, fig.width = 20/2.5, fig.height = 22/2.5
 
 # n col for plotting
 x = unique(d$state_city)
@@ -3947,7 +3873,7 @@ g_tr_des <- ggplotGrob(tr_des)  # view with #g_tr_des$layout$name
 g_tr_des <- gtable_filter_remove(g_tr_des, name = c("axis-b-2-10", "axis-b-4-10", "axis-b-6-9", "axis-b-8-9" , "axis-b-10-9"), trim = FALSE) 
 grid.draw(g_tr_des)#; ggsave('Output/rev_trend-raw_all-data_a.png', g_tr_des, units = 'cm', width = 20, height = 25)
 
-#+ F_S6b, fig.width = 20/2.5, fig.height = 22/2.5
+#+ F_S5b, fig.width = 20/2.5, fig.height = 22/2.5
 ## batch b
 dib = d[state_city%in%x[95:188]]  
 tr_des_b = 
@@ -3976,14 +3902,14 @@ tr_des_b =
 g_tr_des_b <- ggplotGrob(tr_des_b)  # view with #g_tr_des$layout$name =
 g_tr_des_b <- gtable_filter_remove(g_tr_des_b, name = c("axis-b-2-10", "axis-b-4-10", "axis-b-6-9", "axis-b-8-9" , "axis-b-10-9"), trim = FALSE) 
 
-grid.draw(g_tr_des_b)#;ggsave('Output/Fig_S6.png', g_tr_des_b, units = 'cm', width = 20, height = 25)
+grid.draw(g_tr_des_b)#;ggsave('Output/Fig_S5.png', g_tr_des_b, units = 'cm', width = 20, height = 25)
 
-#' <a name="F_S6">
-#' **Figure S6</a> | Change in HOLC grade sampling density per km² over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Line colour indicates the HOLC grade. Note that `r nrow(d[year %between% c(2000, 2020) & sampling_density>7000])/nrow(d[year %between% c(2000, 2020)])`% of 2000-2020 observations (`r nrow(d[year %between% c(2000, 2020) & sampling_density>7000])` out of r`nrow(d[year %between% c(2000, 2020)])`) has sampling densities >7000 observations/km²/year.
+#' <a name="F_S5">
+#' **Figure S5</a> | Change in HOLC grade sampling density per km² over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Line colour indicates the HOLC grade.
 #' 
 #' ***
 #' 
-#+ F_S7, fig.width = 7/2.5, fig.height = 13/2.5
+#+ F_S6, fig.width = 7/2.5, fig.height = 13/2.5
 # summary per D
 drD = d[holc_grade=='D'] #untrimmed dr = d[holc_grade=='D' & sampling_density<7000]
 pD = 
@@ -4025,10 +3951,10 @@ pA =
         axis.text.x = element_blank()
     )  #ggsave('Output/rev_trend-raw_A.png', pD, units = 'cm', width = 7, height = 7)
 
-pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/Fig_S7.png', units = 'cm', width = 7, height = 13)
+pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/Fig_S6.png', units = 'cm', width = 7, height = 13)
 
-#' <a name="F_S7">
-#' **Figure S7</a> | Summarized change in HOLC grade A and D sampling density over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Simple lines represent fits per city, black line fits to all data (note that such lines are just visual exploration of data as they are not controlled for pseudoreplication).
+#' <a name="F_S6">
+#' **Figure S6</a> | Summarized change in HOLC grade A and D sampling density over time across cities.** Lines represent locally estimated scatterplot smoothing or predictions from generalised additive models (generated by stat_smooth function from ggplo2 R-package). Simple lines represent fits per city, black line fits to all data (note that such lines are just visual exploration of data as they are not controlled for pseudoreplication).
 #' 
 #' ***
 #' 
@@ -4036,7 +3962,7 @@ pA / pD + plot_layout(axis = 'collect') #; ggsave('Output/Fig_S7.png', units = '
 #' 
 #' ### iii. Formal analyses of HOLC grade temporal trend differences
 
-#' To formally investigate temporal differences among HOLC grades, authors fitted  yearly sampling density per HOLC grade (log-transformed) in a generalised linear model (essentially linear trend, as no non-liner temrporal structure was included). However, using sampling density as a response variable collapses area, sampling coverage, and sampling intensity into a single quantity, and hence does not control for differences in the amount of area sampled across grades. We thus re-analysed the authors’ year-by-HOLC-grade aggregates using negative binomial generalised linear model of counts with log(area(km²)) offset (Table [S4](#T_S4), Fig. [S8](#F_S8)).
+#' To formally investigate temporal differences among HOLC grades, authors fitted  yearly sampling density per HOLC grade (log-transformed) in a generalised linear model (essentially linear trend, as no non-liner temrporal structure was included). However, using sampling density as a response variable collapses area, sampling coverage, and sampling intensity into a single quantity, and hence does not control for differences in the amount of area sampled across grades. We thus re-analysed the authors’ year-by-HOLC-grade aggregates using negative binomial generalised linear model of counts with log(area(km²)) offset (our Table [S4](#T_S4), Fig. [S7](#F_S7)).
 #' 
 #' 
 #' <a name="T_S4"> 
@@ -4066,7 +3992,7 @@ tab_model(sum_m_nb, sum_m_10_nb, auto.label = T, string.ci='95%CI', title = "Neg
 #' 
 #' ***
 #'
-#+ F_S8, fig.width=15*0.393701,fig.height=10*0.393701 
+#+ F_S7, fig.width=15*0.393701,fig.height=10*0.393701 
 # plot predictions 2000 - 2020
 # newdata grid
 newD <- CJ(year = 2000:2020, holc_grade_D = unique(tt00$holc_grade))
@@ -4166,16 +4092,16 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
   plot_layout(ncol = 2, nrow = 2,
               axis_titles = "collect", guides = "collect") #; ggsave('Output/Fig_Y.jpg', width= 12, height = 15, units ='cm')   
 
-#' <a name="F_S8">
-#' **Figure S8</a> | Predicted sampling density across HOLC grades over time.** Lines with shaded areas represent predictions of sampling density on the log scale (top) and on the original per-km² scale (bottom), from negative binomial models fit to all years (N = 84 observations) or to 2010-2020 (N = 44), each with log(area(km²)) offset. To compare the estimates with those from models fitted to the yearly data per each polygon see Fig. [6][#F_6].
+#' <a name="F_S7">
+#' **Figure S7</a> | Predicted sampling density across HOLC grades over time.** Lines with shaded areas represent predictions of sampling density on the log scale (top) and on the original per-km² scale (bottom), from negative binomial models fit to all years (N = 84 observations) or to 2010-2020 (N = 44), each with log(area(km²)) offset. To compare the estimates with those from models fitted to the yearly data per each polygon see our Fig. [6](#F_6).
 #'
 #' ***
 #' 
 #' Note that when we limit the dataset to the post-2010 period when absolute sampling density differences are no longer close to zero (coinciding with the rise of smartphone-driven communicty science), the difference between the A and D slope is no longer statistically distinguishable (Table [S4](S4)).
 #' 
-#' Moreover, the above models use aggregates per year and HOLC grade (overall number of observations per HOLC grade divided by the overall area of a given HOLC grade), which, as we discussed, is problematic and the results volatile to the chosen aggregation metric (Fig. [4](#4), [S5](#F_S5)). Aggregations also limit the ability to control for spatial/temporal non-independence of data. Thus, using raw data allows controlling for deeper levels of spatial and temporal non-independence, as well as for confounding variables, which we do in the following section.
+#' Moreover, the above models use aggregates per year and HOLC grade (overall number of observations per HOLC grade divided by the overall area of a given HOLC grade), which, as we discussed, is problematic and the results volatile to the chosen aggregation metric (Fig. [4](#4), [S4](#F_S4)). Aggregations also limit the ability to control for spatial/temporal non-independence of data. Thus, using raw data allows controlling for deeper levels of spatial and temporal non-independence, as well as for confounding variables, which we do in the following section.
 #' 
-#' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon and year (i.e. city-specific HOLC grades and sampling-polygon ids; n = `r comma(nrow(d))` polygon-year records; for raw data distribution see Fig. [S6](#F_S6), [S7](#F_S7)).
+#' To account for non-independence of unique polygons and their data across years, we have created a dataset with the number of observations for each unique polygon and year (i.e. city-specific HOLC grades and sampling-polygon ids; n = `r comma(nrow(d))` polygon-year records; for raw data distribution see our Fig. [S5](#F_S5), [S6](#F_S6)).
 #'
 #' ***
 #' 
@@ -4189,7 +4115,7 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
 #' (4) Same as (1), but with random slope of year within polygon.  
 #' (5) Random intercept of sampling polygon id, and random slope of year within nested random intecerpts of state, city, HOLC grade. Same as (2), but with random slope of year.     
 #' 
-#' Note that for the model (5) we attempted a model (2) with random slope of year, but such random structure was non-identifiable (may inflage uncertainty or bias estimation of fixed effects). We thus simplified the random effects to levels where slope variance is identifiable and does not distort fixed-effect estimates, i.e. current (5) model specification.
+#' Note that for the model (5) we attempted a model (2) with random slope of year, but such random structure was non-identifiable (may inflate certainty or bias estimation of fixed effects). We thus simplified the random effects to levels where slope variance is identifiable and does not distort fixed-effect estimates, i.e. current (5) model specification.
 #' 
 #' Moreover, to accommodate slight heteroskedasticity with respect to HOLC grade and city area, in some models we modelled dispersion as a function of these predictors (`dispformula = ~ holc_grade_D + log(area_holc_km2)`). However, outputs of such models were nearly identical to the original ones and hence we report only those.  
 #' 
@@ -4254,32 +4180,32 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
 
   # model ass
   if(recompute_diag){
-  m_ass(name = 'Fig_6_&_S9_2000-2020_a', mo = sum_m_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_a', mo = sum_m_nb, 
   dat = tt00, offset = TRUE, 
   cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
   show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2000-2020_b', mo = maD_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_b', mo = maD_nb, 
     dat = d00, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2000-2020_c', mo = mbD_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_c', mo = mbD_nb, 
     dat = d00, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2000-2020_d', mo = mas1D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_d', mo = mas1D_nb, 
     dat = d00, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE) # spatial asymetry without dispformula, given ok remaining plots, is a cosmetic imbalance, not a structural failure; if dispformula = ~ holc_grade_D + scale(log(area_holc_km2)) spatial asymetry disapears: the dispersion parameter (θ) varies slightly by socioeconomic class and area size, so smaller or denser areas — where variance tends to be higher relative to mean — are no longer “forced” into the same variance structure as large areas, which removes the systematic asymmetry between large negative and small positive residuals. The residual distribution now looks balanced, dispersion ≈ 1, and all structural panels are clean — that’s a near-optimal model.
 
-  m_ass(name = 'Fig_6_&_S9_2000-2020_e', mo = mas2D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_e', mo = mas2D_nb, 
     dat = d00, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2000-2020_f', mo = mbs1D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2000-2020_f', mo = mbs1D_nb, 
     dat = d00, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
@@ -4436,32 +4362,32 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
 
   # model ass
   if(recompute_diag){
-  m_ass(name = 'Fig_6_&_S9_2010-2020_a', mo = sum_m_10_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_a', mo = sum_m_10_nb, 
     dat = tt10, offset = TRUE, 
     cont = c("year", "sum_area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2010-2020_b', mo = ma_D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_b', mo = ma_D_nb, 
     dat = d10, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2010-2020_c', mo = mb_D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_c', mo = mb_D_nb, 
     dat = d10, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2010-2020_d', mo = mas1_D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_d', mo = mas1_D_nb, 
     dat = d10, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE) 
 
-  m_ass(name = 'Fig_6_&_S9_2010-2020_e', mo = mas2_D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_e', mo = mas2_D_nb, 
     dat = d10, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
 
-  m_ass(name = 'Fig_6_&_S9_2010-2020_f', mo = mbs1_D_nb, 
+  m_ass(name = 'Fig_6_&_S8_2010-2020_f', mo = mbs1_D_nb, 
     dat = d10, offset = TRUE, 
     cont = c("year", "area_holc_km2"), categ = 'holc_grade_D',
     show_binned = TRUE, PNG = TRUE)
@@ -4624,11 +4550,11 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
   (tr1D_nb_adj / tr2D_nb_adj) + plot_layout(axis_titles = "collect") #; ggsave('Output/Fig_6.png', width= 27, height = 16, units ='cm')
 
 #' <a name="F_6">
-#' **Figure 6</a> | Differences in HOLC grade sampling density over time.** Dots represent fixed-effect contrasts on the log scale, together with the implied percentage change in sampling density (observations per km² per year; relative to grade D), obtained by exponentiating those contrasts from negative binomial mixed models with log link and offset of `log(area (km²))`. Intercept panels show differences between each HOLC grade at the mean year, slope panels differences per standard deviation increase in year. Horizontal lines are 95% Wald confidence intervals. Colour indicates random-effects structures (variables left of `|` are random slopes, right of `|` random intercepts, and `/` indicates nesting). The top row contains estimates for a dataset spanning 2000-2020 (for the linear model n = `r comma(nrow(tt00))` sum of observations per grade and year, for the mixed models n = `r comma(nrow(d00))` sum of observations per polygon and year); the bottom row contains estimates for a dataset from 2010-2020 (n = `r comma(nrow(tt10))` and n = `r comma(nrow(d10))`, respectively).
+#' **Figure 6</a> | Differences in HOLC grade sampling density over time.** Dots represent fixed-effect contrasts on the log scale, together with the implied percentage change in sampling density (observations per km² per year; relative to grade D), obtained by exponentiating those contrasts from negative binomial mixed models with log link and offset of `log(area (km²))`. Intercept panels show differences between each HOLC grade at the mean year, slope panels differences per standard deviation increase in year. Horizontal lines are 95% Wald confidence intervals. Colour indicates random-effects structures (variables left of `|` are random slopes, right of `|` random intercepts, and `/` indicates nesting). The top row contains estimates for a dataset spanning 2000-2020 (for the linear model n = `r comma(nrow(tt00))` sum of observations per grade and year, for the mixed models n = `r comma(nrow(d00))` sum of observations per polygon and year); the bottom row contains estimates for a dataset from 2010-2020 (n = `r comma(nrow(tt10))` and n = `r comma(nrow(d10))`, respectively). For per grade estimates see our Fig. [S8](#F_S8).
 #' 
 #' 
 #' #### B. Mean and slope values
-#+ F_S9, fig.width = 25/2.5, fig.height = 15/2.5
+#+ F_S8, fig.width = 25/2.5, fig.height = 15/2.5
   # MODELS 2000-2020
   
   # 1) reparametrize models to estimate separte intercepts and slopes for each holc grade 
@@ -4959,12 +4885,12 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
     
     (tr1_adj / tr2_adj) + plot_layout(axis_titles = "collect") #; ggsave('Output/rev_Fig_Z2_rates.png', width= 25, height = 15, units ='cm')
 
-#' <a name="F_S9">
-#' **Figure S9</a> | Estimates of log sampling density between HOLC grades over time.** Dots for intercepts give the log sampling density (observations per km² per year) for each HOLC grade at the mean year; dots for slopes give the change in log sampling density per 1 standard deviation increase in year. Horizontal lines are 95% Wald confidence intervals. Colour indicates random-effects structure (variables left of `|` are random slopes, right of `|` random intercepts, and '/' indicates nesting). The depicted estimates represent represent per grade estimates (not contrasts, which are shown in Fig. [6](6)). The top row contains estimates for a dataset spanning 2000-2020 (n = `r comma(nrow(tt00))` sum of observations per grade and year for the linear model, and n = `r comma(nrow(d00))` sum of observations per polygon and year); the bottom row contains estimates for a dataset from 2010-2020 (n = `r comma(nrow(tt10))` and n = `r comma(nrow(d10))`, respectively).
+#' <a name="F_S8">
+#' **Figure S8</a> | Estimates of log sampling density between HOLC grades over time.** Dots for intercepts give the log sampling density (observations per km² per year) for each HOLC grade at the mean year; dots for slopes give the change in log sampling density per 1 standard deviation increase in year. Horizontal lines are 95% Wald confidence intervals. Colour indicates random-effects structure (variables left of `|` are random slopes, right of `|` random intercepts, and '/' indicates nesting). The depicted estimates represent represent per grade estimates (not contrasts, which are shown in Fig. [6](6)). The top row contains estimates for a dataset spanning 2000-2020 (n = `r comma(nrow(tt00))` sum of observations per grade and year for the linear model, and n = `r comma(nrow(d00))` sum of observations per polygon and year); the bottom row contains estimates for a dataset from 2010-2020 (n = `r comma(nrow(tt10))` and n = `r comma(nrow(d10))`, respectively).
 #'
 #' ***
 #'  
-#' The above models are intended as appropriate alternatives to the authors' inappropriate specified models. However, the authors' models impose linear trends that do not capture the non-linear structure visible in the data (Fig. [4](F_4), Fig. [S6](#F_S6), as well as differences in 2000-2020 vs 2010-2020 estimates in Fig. [6](#F_6), [S9](#F_S9)). Thus, to visualise the fluctuations we analysed temporal changes in observation rates using a generalised additive mixed model (GAM) fitted with `bam()` in `mgcv`. The response was the annual number of bird observations per HOLC polygon, modelled with a negative-binomial distribution and a centered `log(area)` offset to estimate rates per km². Year (scaled) was fitted with a penalised regression spline, with grade-specific deviations (`s(year, by=holc_grade)`), allowing flexible non-linear trends. Random intercepts for state and city, and random city-specific year slopes (`bs="re"`) accounted for spatial hierarchy and differing temporal trajectories among cities, which captures city-level departures from the global smooth but avoids over-parameterising rarely sampled city–grade combinations. Models were fitted via REML with discrete smooths to support large datasets (~200k rows).
+#' The above models are intended as appropriate alternatives to the authors' inappropriate specified models. However, the authors' models impose linear trends that do not capture the non-linear structure visible in the data (our Fig. [4](F_4), Fig. [S5](#F_S5), as well as differences in 2000-2020 vs 2010-2020 estimates in our Fig. [6](#F_6), [S8](#F_S8)). Thus, to visualise the fluctuations we analysed temporal changes in observation rates using a generalised additive mixed model (GAM) fitted with `bam()` in `mgcv`. The response was the annual number of bird observations per HOLC polygon, modelled with a negative-binomial distribution and a centered `log(area)` offset to estimate rates per km². Year (scaled) was fitted with a penalised regression spline, with grade-specific deviations (`s(year, by=holc_grade)`), allowing flexible non-linear trends. Random intercepts for state and city, and random city-specific year slopes (`bs="re"`) accounted for spatial hierarchy and differing temporal trajectories among cities, which captures city-level departures from the global smooth but avoids over-parameterising rarely sampled city–grade combinations. Models were fitted via REML with discrete smooths to support large datasets (~200k rows).
 #' 
 #' **Model-based predictions and contrasts** To visualise temporal trends in sampling density for each HOLC grade, we obtained population-level predictions from the negative-binomial GAM by marginalising over all random effects. Predictions were generated using the model’s linear predictor matrix (`type = "lpmatrix"`) while excluding random-effect smooths (`s(state)`, `s(city_state)`, `s(id)`, and `s(city_state):year_s)`. This yields expected values for an “average” neighbourhood (i.e. with mean-zero random effects).
 #' 
@@ -5509,24 +5435,24 @@ both; #ggsave('Output/Fig_7.png', both, width = 12, height = 9*2, units = 'cm')
 }
 
 #' <a name="F_7">
-#' **Figure 7</a> | Non-linear temporal changes in bird-sampling density by HOLC grade and disparity between grades A and D.** **Top two rows**, population-level (marginal) predictions from a negative binomial generalised additive model (`bam`) with log link and centered `log(area)` offset, fitted to polygon-level counts for 2000-2020 (left) and 2010-2020 (right) data. The model included a smooth for year, grade-specific smooth deviations, and random effects for state, city, and polygon, and city-specific temporal slopes. Curves show predicted sampling density (observations per km²) for each HOLC grade on a log scale (1st row) and original scale (2nd row). **Bottom two rows**, predicted differences between grades A and D from the same model fitted to observations from 2000-2020 (left) and 2010-2020 (right), expressed as percent difference relative to D (3rd row) and as absolute difference in observations per km² (bottom row). Relative disparity varies non-linearly over time and exceeds 200% by 2020, whereas absolute differences remain small (< ~25 observations per km²), indicating that large proportional disparities do not translate into large absolute changes in sampling intensity. *In all panels*, shaded ribbons are 95% confidence intervals.
+#' **Figure 7</a> | Non-linear temporal changes in bird-sampling density by HOLC grade and disparity between grades A and D.** **Top two rows**, population-level (marginal) predictions from a negative binomial generalised additive model (`bam`) with log link and centered `log(area)` offset, fitted to polygon-level counts for 2000-2020 (left) and 2010-2020 (right) data. The model included a smooth for year, grade-specific smooth deviations, and random effects for state, city, and polygon, and city-specific temporal slopes. Curves show predicted sampling density (observations per km²) for each HOLC grade on a log scale (1st row) and original scale (2nd row). **Bottom two rows**, predicted differences between grades A and D from the same model fitted to observations from 2000-2020 (left) and 2010-2020 (right), expressed as percent difference relative to D (3rd row) and as absolute difference in observations per km² (bottom row). Relative disparity varies non-linearly over time and exceeds 350% by 2020, whereas absolute differences remain small (< ~25 observations per km²), indicating that large proportional disparities do not translate into large absolute changes in sampling intensity. *In all panels*, shaded ribbons are 95% confidence intervals.
 #'
 #' ***
 #'  
-#' The non-linear smooth model confirms marked non-linear temporal variation in sampling density across HOLC grades (Fig. [7](#F_S7)). All grades show an increase in sampling rates after 2012, reflecting the general expansion of community-science activity, but grade A neighbourhoods consistently exhibit higher rates than grade D.
+#' The non-linear smooth model confirms marked non-linear temporal variation in sampling density across HOLC grades (our Fig. [7](#F_7)). All grades show an increase in sampling rates after ~2010, reflecting the general expansion of community-science activity, but grade A neighbourhoods consistently exhibit higher rates than grade D.
 #' 
 #' The model-based A–D contrast on the log scale change little over time, corresponding to percentage differences that fluctuate between ~100% and ~350% across years. Specifically, relative disparity of ~100% remains stable between 2000–2005, increases by ~150% between 2005–2010, is broadly stable or slightly declines between 2010–2017, and then increases sharply reaching ~350% by 2020. In contrast, absolute disparity shows virtually no difference between grades until approximately 2010, after which A exceeds D by only 5 observations per km² by ~2017 and up to ~25 observations per km² by 2020, a small absolute magnitude despite large relative changes.
 #' 
 #'In other words, pre-2010 absolute gaps between HOLC A and D are tiny though the relative difference is already >0; after ~2010 both relative and absolute gaps increase (coinciding with the post-2010 surge in smartphone-driven community science activity), albet maximum absolute difference is still only ~5 observations per km² and year by 2017. The sharp increase thereafter (up to ~25 observations) coincides with COVID-19-restrictions driven increase in human activity in urban green areas in spring 2020.
 #' 
-#' #### Conclusion
-#' #' These non-linear patterns contradict the authors’ reported 35.6% linear increase. Our estimates (Fig. [8](#F_8), Fig. [S9](#F_S9)) show that (i) A-D disparity does not follow a linear trajectory, (ii) the relative magnitude of change exceed ~200% across the period, i.e. is substantially greater than 35.6%, and (iii) absolute differences remain small (typically <25 observations per km²), indicating that the apparent inflation of disparity is driven largely by relative scaling rather than large biological effects. 
+#' #### Conclusions
+#' These non-linear patterns contradict the authors’ reported 35.6% linear increase. Our estimates (our Fig. [8](#F_8), Fig. [S8](#F_S8)) show that (i) A-D disparity does not follow a linear trajectory, (ii) the relative magnitude of change exceed ~200% across the 2000-2020 period, i.e. is substantially greater than 35.6%, and (iii) absolute differences remain small (typically <25 observations per km²), indicating that the apparent inflation of disparity is driven largely by relative scaling rather than large biological effects. 
 #'  
 #' ***
 #' 
 #' # Model assumptions
 
-#' The model formula consits of the model type (lm - linear model, glm - generalised linear model, lmer - linear mixed-effect model, glmer - generalised linear mixed-effect model, glmmTMB – generalised linear mixed‐effects model fitted via Template Model Builder, gam - generalised additive model, glm.nb – negative binomial generalised linear model, bam – generalised additive model for large dataset), the response (left of ~), predictors (right of ~) with predictors in paranthesis indicating random effects, the predictors without paranthesis fixed effects. Random effects left of '|' are random slopes, right of '|' are random intercepts. Explicitly nested random intercepts are separated by '/'. 'scale' indicates z-transformation whereas log (in R) means natural logarithm.
+#' The model formula consists of the model type (lm - linear model, glm - generalised linear model, lmer - linear mixed-effect model, glmer - generalised linear mixed-effect model, glmmTMB – generalised linear mixed‐effects model fitted via Template Model Builder, gam - generalised additive model, glm.nb – negative binomial generalised linear model, bam – generalised additive model for large dataset), the response (left of ~), predictors (right of ~) with predictors in paranthesis indicating random effects, the predictors without paranthesis fixed effects. Random effects left of '|' are random slopes, right of '|' are random intercepts. Explicitly nested random intercepts are separated by '/'. 'scale' indicates z-transformation whereas log (in R) means natural logarithm.
 #' 
 #' ## Fig 1 - Sampled yes or no
 #' Below diagnostics of binomial models (Pearson residuals, binned fits, QQ-plots, partial autocorrelation, and spatial semivariogram) indicate good fit and no substantial temporal or spatial autocorrelation (Moran’s I ≈ 0). Pearson dispersion ≈ 0.6 suggested mild underdispersion, which makes inference conservative rather than inflated, which is desired. Gaussian mixed models, despite non-normal residuals, yielded consistent effect directions and magnitudes compared to binomial models (see Fig. 1), supporting the robustness of the main results (cf. Knief & Forstmeier 2021).
@@ -5649,20 +5575,20 @@ knitr::include_graphics(here::here("Output", "Model_ass", "Table_S3d_multiplied_
 knitr::include_graphics(here::here("Output", "Model_ass", "Table_S4_all_years.png"))
 knitr::include_graphics(here::here("Output", "Model_ass", "Table_S4_2010-2020_years.png"))
 
-#' ## Figure 6 & S9
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_a.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_b.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_c.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_d.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_e.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2000-2020_f.png"))
+#' ## Figure 6 & S8
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2000-2020_f.png"))
 
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_a.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_b.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_c.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_d.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_e.png"))
-knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S9_2010-2020_f.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_a.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_b.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_c.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_d.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_e.png"))
+knitr::include_graphics(here::here("Output", "Model_ass", "Fig_6_&_S8_2010-2020_f.png"))
 
 #' ## Figure 7
 knitr::include_graphics(here::here("Output", "Model_ass", "Fig_7_2000-2020.png"))
