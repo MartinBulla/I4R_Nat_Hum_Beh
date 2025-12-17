@@ -20,7 +20,9 @@
 #+ r setup, include=FALSE 
 
 #knitr::opts_knit$set(root.dir = normalizePath(".."))
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, cache = FALSE)  
+knitr::opts_chunk$set(
+  message = FALSE, warning = FALSE, cache = FALSE, 
+  fig.retina = 1)  
 
 #' # General note  
 #' 
