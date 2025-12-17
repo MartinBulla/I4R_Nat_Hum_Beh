@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/490718600.svg)](https://zenodo.org/doi/10.5281/zenodo.11633803)
 
-## Supporting information for "Replication of 'Historical redlining is associated with increasing geographical disparities in bird biodiversity sampling in the United States'”  
+## Supporting information for "Reanalysis of 'Historical redlining is associated with increasing geographical disparities in bird biodiversity sampling in the United States'”  
 
 When using this content **PLEASE CITE** the [to be posted paper]() and this repository[<sup>1</sup>](#1), which contains all code, data and outputs used in this replication. 
 
