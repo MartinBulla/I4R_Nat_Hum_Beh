@@ -33,7 +33,7 @@ knitr::opts_chunk$set(
 #' ### Content of the repository
 #' [The current supporting information](https://martinbulla.github.io/I4R_Nat_Hum_Beh/)  
 #'  
-#' [original_paper](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/original_paper/) folder contains the original publication with its supplement in the subfolder `Paper`, and the original downloaded `Data_Code.zip` from the authors' [repository](https://doi.org/10.5281/zenodo.8052525) - to use our scripts unzip and move the subfolders `Data` and `Code` (both two with the file structure as provided by the authors) into original_paper folder. 
+#' [original_paper](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/original_paper/) folder contains the original publication with its supplement in the subfolder `Paper`, and to run our scripts needs the subfolders `Data` and `Code`, both two folders with the file structure as provided by the authors, obtained by downloading the authors' [repository](https://doi.org/10.5281/zenodo.8052525)
 #'  
 #' [Data](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Data/) stores further data in folders:  
 #' - [provided](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Data/provided/) with additional data shared by the authors upon the request from The Institute for Replication  
