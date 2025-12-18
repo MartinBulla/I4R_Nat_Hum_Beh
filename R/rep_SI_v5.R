@@ -26,7 +26,7 @@ knitr::opts_chunk$set(
 
 #' # General note  
 #' 
-#' When using this content **PLEASE CITE** the [to be posted paper]() and this repository [@bulla_supporting_2025], which contains all code, data and outputs used in this replication.
+#' When using this content **PLEASE CITE** our [preprint](https://doi.org/10.32942/X2TQ09) and this repository [@bulla_supporting_2025], which contains all code, data and outputs used in this replication.
 #' 
 #' Scripts generating the outputs of this html are available upon clicking the `code` button at the top right above each display item!
 #' 
@@ -2030,7 +2030,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' ***
 #'
-#+ F_r1, fig.width = 25/2.5, fig.height = 8/2.5
+#+ F_1, fig.width = 25/2.5, fig.height = 8/2.5
   # ggplot(h, aes(x = area_holc_km2, y = pct_pa)) + geom_point() + stat_smooth() # correlation check
   # binary models
 
@@ -2201,7 +2201,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
     )
 
     coef_df_A <- coef_df_A %>%
-    dplyr::mutate(model_label = factor(model_label, levels = models_A_order))
+    dplyr::mutate(model_label = factor(model_label, levels = models_A_order)) #fwrite(file = 'Data/freeze/Fig_1.csv',coef_df_A )
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -2387,7 +2387,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
     )
 
     coef_df_A_g <- coef_df_A_g %>%
-    dplyr::mutate(model_label = factor(model_label, levels = models_A_order_g))
+    dplyr::mutate(model_label = factor(model_label, levels = models_A_order_g))#fwrite(file = 'Data/freeze/Fig_1_gaussian.csv',coef_df_A_g )
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -2438,7 +2438,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' ***
 #'
-#+ F_r2, fig.width = 25/2.5, fig.height = 12/2.5
+#+ F_2, fig.width = 25/2.5, fig.height = 12/2.5
   
   # non zero data
     hB_ = h[!is.na(sampling_density)] # remove NAs (zeros)
@@ -2594,7 +2594,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
     )
 
     coef_df_B <- coef_df_B %>%
-    dplyr::mutate(model_label = factor(model_label, levels = models_B_order))
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order))#fwrite(file = 'Data/freeze/Fig_2_non-zero.csv',coef_df_B )
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -2788,7 +2788,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
     )
 
     coef_df_B_a  <- coef_df_B_a  %>%
-    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_a ))
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_a ))#fwrite(file = 'Data/freeze/Fig_2_all.csv',coef_df_B )
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -2973,7 +2973,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
     )
 
     coef_df_B_r <- coef_df_B_r  %>%
-    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_r ))
+    dplyr::mutate(model_label = factor(model_label, levels = models_B_order_r )); #fwrite(file = 'Data/freeze/Fig_2_rates.csv',coef_df_B_r )
 
     red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
     blue_ =  "#46B8DAFF"
@@ -3029,7 +3029,7 @@ tab_model(gam_density_mul_ln, gam_density_ok_ln, auto.label = T, string.ci='95%C
 #' 
 #' ***
 #' 
-#+ F_r3, fig.width = 25/2.5, fig.height = 4/2.5
+#+ F_3, fig.width = 25/2.5, fig.height = 4/2.5
 
 hC = h[!is.na(completeness)]
 
@@ -3185,7 +3185,7 @@ dplyr::mutate(
 )
 
 coef_df_C <- coef_df_C %>%
-dplyr::mutate(model_label = factor(model_label, levels = models_C_order))
+dplyr::mutate(model_label = factor(model_label, levels = models_C_order)); #fwrite(file = 'Data/freeze/Fig_3.csv',coef_df_C)
 
 red_ = "#D43F3AFF" # ggsci::pal_locuszoom()(5)    
 blue_ =  "#46B8DAFF"
@@ -4241,7 +4241,7 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
                     type == "slope_per_SDyear", "Slope",
                     default = as.character(type)),
       holc_grade_dif = paste0(holc_grade, " vs D")  # match tr1D y labels
-    )
+    ); #fwrite(file = 'Data/freeze/Fig_6_linear-models.csv',lm_df_nb) 
 
   lm_lab_nb <- paste0(
     sprintf("Negative binomial model\non bird observations per year\n(n = %s for 2000-2020)", nobs(sum_m_nb)), "\n(n = ", nrow(tt10), " for 2010-2010)") # Legend label text (no title, single key)
@@ -4258,7 +4258,7 @@ ggplot(newD2, aes(x = year, y = rate, colour = holc_grade_D, fill = holc_grade_D
     default = as.character(type)
   )]
 
-  coef_df_0020_D_nb[, holc_grade_dif := paste0(holc_grade, ' vs D')]
+  coef_df_0020_D_nb[, holc_grade_dif := paste0(holc_grade, ' vs D')]; #fwrite(file = 'Data/freeze/Fig_6_mixed-models.csv',coef_df_0020_D_nb)  
 
   gap_pt <- 5 # adjusts subtitle spacing: how big a gap you want between the two rows (in points)
 
