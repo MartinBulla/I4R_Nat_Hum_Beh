@@ -41,7 +41,7 @@ knitr::opts_chunk$set(
 #'  
 #' [R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/) - scripts used in the analysis:  
 #' - [_runRmarkdown.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/_runRmarkdown.R) generates the html [Supplement](https://martinbulla.github.io/I4R_Nat_Hum_Beh/) from the following R-script:  
-#' - [rep_SI_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rep_SI_v2.R) contains all scripts used to generate the paper outputs, including the display items  
+#' - [rep_SI_v5.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rep_SI_v5.R) contains all scripts used to generate the paper outputs, including the display items  
 #' - [rev_Dat_temporal_trend_v2.R](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/R/rev_Dat_temporal_trend_v2.R) is an adjusted author's script that saves the # of sampling observations per each polygon and year  
 #' 
 #' [Outputs](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/) - separate files of all outputs used in our manuscript, the html supporting infomration file  as well as [Model_ass](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Output/Model_ass) folder with model assumptions of all models that we fitted. 
