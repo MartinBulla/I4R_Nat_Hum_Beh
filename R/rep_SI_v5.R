@@ -33,7 +33,7 @@ knitr::opts_chunk$set(
 #' ### Content of the repository
 #' [The current supporting information](https://martinbulla.github.io/I4R_Nat_Hum_Beh/)  
 #'  
-#' [original_paper](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/original_paper/) folder contains the original publication with its supplement in the subfolder `Paper`, and to run our scripts needs the subfolders `Data` and `Code`, both two folders with the file structure as provided by the authors, obtained by downloading the authors' [repository](https://doi.org/10.5281/zenodo.8052525)
+#' [original_paper](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/original_paper/) folder used for `Data` and `Code` subfolders, both two folders with the file structure as provided by the authors, obtained by downloading the authors' [repository](https://doi.org/10.5281/zenodo.8052525); note that due to copyright, we do not post the actual `Data` and `Code` subfolders, you need to download those from the authors' [repository](https://doi.org/10.5281/zenodo.8052525); for the actual paper with its supplements see https://www.nature.com/articles/s41562-023-01688-5 
 #'  
 #' [Data](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Data/) stores further data in folders:  
 #' - [provided](https://github.com/MartinBulla/I4R_Nat_Hum_Beh/tree/main/Data/provided/) with additional data shared by the authors upon the request from The Institute for Replication  
